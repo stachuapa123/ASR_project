@@ -15,14 +15,14 @@ def evaluate_tm(model, data_loader, metric, device):
             metric.update(y_pred, y_batch)
     return metric.compute()
 
-def train(model, optimizer, loss_fn, metric, train_loader, valid_loader,
+def train_model(model, optimizer, loss_fn, metric, train_loader, valid_loader,
           n_epochs, patience=2, factor=0.5, device=None, epoch_callback=None):
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="max", patience=patience, factor=factor)
     history = {"train_losses": [], "train_metrics": [], "valid_metrics": []}
     for epoch in range(n_epochs):
         total_loss = 0.0
-        metric.reset()
+        #metric.reset()
         model.train()
         if epoch_callback is not None:
             epoch_callback(model, epoch)
