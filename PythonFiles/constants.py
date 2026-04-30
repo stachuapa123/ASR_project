@@ -23,7 +23,7 @@ class Constants:
     NON_PHONEME = 'oov'
     LABELS    = PHONEMES + [NON_PHONEME]
     LABEL2IDX = {l: i for i, l in enumerate(LABELS)}
-    IDX2LABEL = {l: i for i, l in enumerate(LABELS)}   # see fix below
+    IDX2LABEL = {i: l for l, i in LABEL2IDX.items()}
     N_CLASSES = len(LABELS)
 
     mel_transformer = T.MelSpectrogram(sample_rate=SAMPLE_RATE, n_fft=N_FFT,
