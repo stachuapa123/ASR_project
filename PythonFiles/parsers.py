@@ -65,7 +65,21 @@ def windows_and_labels(mel, phonemes):
         label = best_vowel if best_vowel is not None else C.NON_PHONEME
         out.append((mel[:, start:end].clone(), C.LABEL2IDX[label]))
     return out
-
+def windows_and_labels_center(mel, phonemes):
+    n_mels, T = mel.shape
+    frame_dur = C.HOP_LENGTH / C.SAMPLE_RATE  # seconds per frame
+    out = []
+    for start in range(0, T - C.WIN_FRAMES + 1, C.SHIFT_FRAMES):
+        end = start + C.WIN_FRAMES
+        t_start = start * frame_dur
+        t_end   = end   * frame_dur
+        label = C.NON_PHONEME
+        t_center = (t_start + t_end) / 2
+        for (pmin, pmax, ptext) in phonemes:
+            if pmin <= t_center < pmax:
+                label = ptext
+        out.append((mel[:, start:end].clone(), C.LABEL2IDX[label]))
+    return out
 class PhonemeWindowDataset(Dataset):
     def __init__(self, data_dir, max_files=None, verbose=True, standardize=True, silences_same=False):
         # recursively find every .TextGrid at any depth under data_dir

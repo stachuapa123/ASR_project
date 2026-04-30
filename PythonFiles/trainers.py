@@ -37,7 +37,7 @@ def train_model(model, optimizer, loss_fn, metric, train_loader, valid_loader,
     for epoch in range(1, n_epochs + 1):
         # -------- TRAIN --------
         model.train()
-        #metric.reset()                              # FIX: reset per epoch
+        metric.reset()                              # FIX: reset per epoch
         running_loss, running_n = 0.0, 0
 
         for index, (X_batch, y_batch) in enumerate(train_loader):
