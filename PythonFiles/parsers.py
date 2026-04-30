@@ -2,6 +2,9 @@ from .constants import Constants as C
 import numpy as np
 from scipy.io import wavfile
 import torch
+import os
+from torch.utils.data import Dataset
+from pathlib import Path
 def parse_phonemes(text_grid, silences_same=False):
     
     phonemes = []
@@ -62,3 +65,37 @@ def windows_and_labels(mel, phonemes):
         label = best_vowel if best_vowel is not None else C.NON_PHONEME
         out.append((mel[:, start:end].clone(), C.LABEL2IDX[label]))
     return out
+
+class PhonemeWindowDataset(Dataset):
+    def __init__(self, data_dir, max_files=None, verbose=True, standardize=True, silences_same=False):
+        # recursively find every .TextGrid at any depth under data_dir
+        tg_paths = sorted(str(p) for p in Path(data_dir).rglob('*.TextGrid'))
+        if verbose:
+            print(f'found {len(tg_paths)} TextGrid files under {data_dir}')
+        if max_files is not None:
+            tg_paths = tg_paths[:max_files]
+        xs, ys = [], []
+        for i, tg in enumerate(tg_paths):
+            wav = tg[:-len('.TextGrid')] + '.wav'
+            if not os.path.exists(wav):
+                continue
+            try:
+                mel = wav_to_logmel(wav, standardize=standardize)
+                with open(tg, 'r', encoding='utf-8') as f:
+                    phonemes = parse_phonemes(f.read(), silences_same=silences_same)
+                for w, lbl in windows_and_labels(mel, phonemes):
+                    xs.append(w); ys.append(lbl)
+            except Exception as e:
+                if verbose: print(f'skip {tg}: {e}')
+            if verbose and (i + 1) % 100 == 0:
+                print(f'  processed {i+1}/{len(tg_paths)} files, {len(xs)} windows')
+        self.X = torch.stack(xs) if xs else torch.empty(0, C.N_MELS, C.WIN_FRAMES)
+        self.y = torch.tensor(ys, dtype=torch.long)
+        if verbose:
+            print(f'total windows: {len(self.y)}')
+            counts = torch.bincount(self.y, minlength=C.N_CLASSES).tolist()
+            for l, c in zip(C.LABELS, counts):
+                print(f'  {l:>9}: {c}')
+
+    def __len__(self):            return len(self.y)
+    def __getitem__(self, idx):   return self.X[idx], self.y[idx]

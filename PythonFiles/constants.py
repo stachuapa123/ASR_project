@@ -18,7 +18,7 @@ class Constants:
     PHONEMES = [
         'S', 'Z', 'a', 'b', 'c', 'd', 'dZ', 'dz', 'dzj', 'e', 'eo5', 'f', 'g',
         'h', 'i', 'i2', 'j', 'k', 'l', 'm', 'n', 'n~', 'o', 'oc5', 'p', 'r',
-        's', 'sj', 'sil', 't', 'tS', 'tsj', 'u', 'v', 'w', 'z', 'zj',
+        's', 'sj', 'sil', 'sp', 't', 'tS', 'tsj', 'u', 'v', 'w', 'z', 'zj',
     ]
     NON_PHONEME = 'oov'
     LABELS    = PHONEMES + [NON_PHONEME]
