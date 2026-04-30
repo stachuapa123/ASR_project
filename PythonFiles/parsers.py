@@ -5,6 +5,7 @@ import torch
 import os
 from torch.utils.data import Dataset
 from pathlib import Path
+from scipy import signal
 def parse_phonemes(text_grid, silences_same=False):
     
     phonemes = []
@@ -39,6 +40,16 @@ def wav_to_logmel(wav_path, standardize=True):
         #np.iinfo(audio.dtype).max zwraca maksymalną wartość dla danego typu danych, np. 32767 dla int16. Dzieląc przez to, skalujemy wartości do zakresu [-1, 1].
     else:
         audio = audio.astype(np.float32)
+
+    if audio.ndim == 2:
+        audio = audio.mean(axis=1)
+    
+    #czasami wav maja inne czestotliwosci probkowania, więc resamplujemy do 16 kHz
+    if samplerate != C.SAMPLE_RATE:
+        n_samples = int(len(audio) * C.SAMPLE_RATE / samplerate)
+        audio = signal.resample(audio, n_samples).astype(np.float32)
+        samplerate = C.SAMPLE_RATE
+
     wav = torch.from_numpy(audio).unsqueeze(0)  # (1, n_samples)
     mel = C.decibel_transformer(C.mel_transformer(wav)).squeeze(0)         # (n_mels, T)
 

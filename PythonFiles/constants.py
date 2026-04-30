@@ -7,8 +7,8 @@ class Constants:
     N_MELS      = 128
 
     # ---- classification window ----
-    WIN_MS       = 120
-    SHIFT_MS     = 40
+    WIN_MS       = 80
+    SHIFT_MS     = 20
     FRAME_MS     = HOP_LENGTH * 1000 // SAMPLE_RATE   # 10
     WIN_FRAMES   = WIN_MS   // FRAME_MS               # 8
     SHIFT_FRAMES = SHIFT_MS // FRAME_MS               # 2
