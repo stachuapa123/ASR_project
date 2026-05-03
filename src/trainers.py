@@ -1,7 +1,44 @@
 import torch
 import copy
 from pathlib import Path
-import torchmetrics
+
+
+def save_checkpoint(path, model, labels=None, config=None, epoch=None,
+                    val_metric=None, history=None):
+    """Save a standardized checkpoint dict for later loading."""
+    payload = {"model_state_dict": model.state_dict()}
+    if labels is not None:
+        payload["labels"] = list(labels)
+    if config is not None:
+        payload["config"] = dict(config)
+    if epoch is not None:
+        payload["epoch"] = epoch
+    if val_metric is not None:
+        payload["val_metric"] = val_metric
+    if history is not None:
+        payload["history"] = history
+
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    torch.save(payload, path)
+    return payload
+
+
+def load_checkpoint(path, model, device=None, strict=True):
+    """Load standardized checkpoints; supports raw state_dicts for older files."""
+    checkpoint = torch.load(path, map_location=device)
+    if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+        state_dict = checkpoint["model_state_dict"]
+        meta = {k: v for k, v in checkpoint.items() if k != "model_state_dict"}
+    else:
+        state_dict = checkpoint
+        meta = {}
+
+    model.load_state_dict(state_dict, strict=strict)
+    if device is not None:
+        model.to(device)
+    return meta
+
+
 def train_model(model, optimizer, loss_fn, metric, train_loader, valid_loader,
                 n_epochs, patience=2, factor=0.5, device=None,
                 early_stop_patience=5, save_best_to=None,
@@ -89,13 +126,13 @@ def train_model(model, optimizer, loss_fn, metric, train_loader, valid_loader,
             best_state            = copy.deepcopy(model.state_dict())
             epochs_without_improvement = 0
             if save_best_to is not None:
-                Path(save_best_to).parent.mkdir(parents=True, exist_ok=True)
-                torch.save({
-                    'model_state_dict': model.state_dict(),
-                    'epoch': epoch,
-                    'val_metric': val_metric,
-                    'history': history,
-                }, save_best_to)
+                save_checkpoint(
+                    save_best_to,
+                    model,
+                    epoch=epoch,
+                    val_metric=val_metric,
+                    history=history,
+                )
         else:
             epochs_without_improvement += 1
 

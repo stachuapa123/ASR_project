@@ -6,10 +6,12 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "matplotlib>=3.10.8",
+    "optuna>=4.8.0",
     "scipy>=1.17.1",
     "sounddevice>=0.5.5",
     "torch>=2.11.0",
     "torchaudio>=2.11.0",
+    "torchmetrics>=1.9.0",
 ]
 
 [dependency-groups]
@@ -24,3 +26,4 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = ""
+module-name = "src"

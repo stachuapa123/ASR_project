@@ -1,4 +1,6 @@
 import torchaudio.transforms as T
+
+
 class Constants:
     # ---- spectrogram ----
     SAMPLE_RATE = 16000          # 16000 pomiarow cisnienia na sekunde
@@ -29,4 +31,3 @@ class Constants:
     mel_transformer = T.MelSpectrogram(sample_rate=SAMPLE_RATE, n_fft=N_FFT,
                           hop_length=HOP_LENGTH, n_mels=N_MELS)
     decibel_transformer = T.AmplitudeToDB() #decibel transform
-    

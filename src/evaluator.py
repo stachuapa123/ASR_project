@@ -3,12 +3,20 @@ from torch import device, nn
 from .parsers import wav_to_logmel, parse_phonemes
 from .constants import Constants as C
 
+
 def evaluate_audio(wav_path, textgrid_path=None, model=None, device=None,
                    collapse=True, show_per_window=False, top_k=3):
     """Predict the phoneme sequence in one audio file, with probabilities.
 
     top_k: how many candidate phonemes to show per window (set 0 to hide).
     """
+    if model is None:
+        raise ValueError("model must be provided")
+    if device is None:
+        # Default to the model's device to avoid cross-device errors.
+        device = next(model.parameters()).device
+    else:
+        model = model.to(device)
     # 1. compute mel spectrogram
     mel = wav_to_logmel(wav_path)
     n_mels, T = mel.shape

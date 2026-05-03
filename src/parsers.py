@@ -6,6 +6,9 @@ import os
 from torch.utils.data import Dataset
 from pathlib import Path
 from scipy import signal
+import warnings
+
+
 def parse_phonemes(text_grid, silences_same=False):
     
     phonemes = []
@@ -32,9 +35,9 @@ def parse_phonemes(text_grid, silences_same=False):
             xmin = xmax = None
     return phonemes
 
+
 def wav_to_logmel(wav_path, standardize=True):
     samplerate, audio = wavfile.read(wav_path)
-    assert samplerate == C.SAMPLE_RATE, f'expected {C.SAMPLE_RATE} Hz, got {samplerate}'
     if np.issubdtype(audio.dtype, np.integer):
         audio = audio.astype(np.float32) / np.iinfo(audio.dtype).max        #jeśli int, to normalizujemy do [-1, 1], 
         #np.iinfo(audio.dtype).max zwraca maksymalną wartość dla danego typu danych, np. 32767 dla int16. Dzieląc przez to, skalujemy wartości do zakresu [-1, 1].
@@ -44,8 +47,12 @@ def wav_to_logmel(wav_path, standardize=True):
     if audio.ndim == 2:
         audio = audio.mean(axis=1)
     
-    #czasami wav maja inne czestotliwosci probkowania, więc resamplujemy do 16 kHz
+    # Ensure the feature extractor sees a consistent sample rate.
     if samplerate != C.SAMPLE_RATE:
+        warnings.warn(
+            f"resampling from {samplerate} Hz to {C.SAMPLE_RATE} Hz for {wav_path}",
+            RuntimeWarning,
+        )
         n_samples = int(len(audio) * C.SAMPLE_RATE / samplerate)
         audio = signal.resample(audio, n_samples).astype(np.float32)
         samplerate = C.SAMPLE_RATE
@@ -58,6 +65,7 @@ def wav_to_logmel(wav_path, standardize=True):
 
     return mel
 
+
 def windows_and_labels(mel, phonemes):
     n_mels, T = mel.shape
     frame_dur = C.HOP_LENGTH / C.SAMPLE_RATE  # seconds per frame
@@ -66,16 +74,18 @@ def windows_and_labels(mel, phonemes):
         end = start + C.WIN_FRAMES
         t_start = start * frame_dur
         t_end   = end   * frame_dur
-        best_vowel, best_overlap = None, 0.0
+        best_phone, best_overlap = None, 0.0
         for (pmin, pmax, ptext) in phonemes:
             if ptext not in C.PHONEMES:
                 continue
             overlap = min(pmax, t_end) - max(pmin, t_start)
             if overlap > best_overlap:
-                best_overlap, best_vowel = overlap, ptext
-        label = best_vowel if best_vowel is not None else C.NON_PHONEME
+                best_overlap, best_phone = overlap, ptext
+        label = best_phone if best_phone is not None else C.NON_PHONEME
         out.append((mel[:, start:end].clone(), C.LABEL2IDX[label]))
     return out
+
+
 def windows_and_labels_center(mel, phonemes):
     n_mels, T = mel.shape
     frame_dur = C.HOP_LENGTH / C.SAMPLE_RATE  # seconds per frame
@@ -87,10 +97,13 @@ def windows_and_labels_center(mel, phonemes):
         label = C.NON_PHONEME
         t_center = (t_start + t_end) / 2
         for (pmin, pmax, ptext) in phonemes:
-            if pmin <= t_center < pmax:
+            if pmin <= t_center < pmax and ptext in C.LABEL2IDX:
                 label = ptext
+                break
         out.append((mel[:, start:end].clone(), C.LABEL2IDX[label]))
     return out
+
+
 class PhonemeWindowDataset(Dataset):
     def __init__(self, data_dir, max_files=None, verbose=True, standardize=True, silences_same=False):
         # recursively find every .TextGrid at any depth under data_dir
