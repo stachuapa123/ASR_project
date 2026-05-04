@@ -18,10 +18,10 @@ item []:
             text = "" 
         intervals [2]:
             xmin = 0.25 
-            xmax = 0.44 
+            xmax = 0.49 
             text = "sędzia" 
         intervals [3]:
-            xmin = 0.44 
+            xmin = 0.49 
             xmax = 0.57 
             text = "" 
         intervals [4]:
@@ -50,14 +50,14 @@ item []:
             text = "małżeństwa" 
         intervals [10]:
             xmin = 3.41 
-            xmax = 3.8 
+            xmax = 3.79 
             text = "między" 
         intervals [11]:
-            xmin = 3.8 
-            xmax = 4.23 
+            xmin = 3.79 
+            xmax = 4.22 
             text = "zosią" 
         intervals [12]:
-            xmin = 4.23 
+            xmin = 4.22 
             xmax = 4.37 
             text = "" 
         intervals [13]:
@@ -86,10 +86,10 @@ item []:
             text = "sama" 
         intervals [19]:
             xmin = 6.77 
-            xmax = 6.91 
+            xmax = 6.92 
             text = "" 
         intervals [20]:
-            xmin = 6.91 
+            xmin = 6.92 
             xmax = 7.6 
             text = "zainteresowana" 
         intervals [21]:
@@ -156,10 +156,10 @@ item []:
             text = "dʑ" 
         intervals [6]:
             xmin = 0.41 
-            xmax = 0.44 
+            xmax = 0.49 
             text = "a" 
         intervals [7]:
-            xmin = 0.44 
+            xmin = 0.49 
             xmax = 0.57 
             text = "" 
         intervals [8]:
@@ -276,10 +276,10 @@ item []:
             text = "m" 
         intervals [36]:
             xmin = 2.92 
-            xmax = 2.95 
+            xmax = 2.98 
             text = "a" 
         intervals [37]:
-            xmin = 2.95 
+            xmin = 2.98 
             xmax = 3.01 
             text = "w" 
         intervals [38]:
@@ -320,18 +320,18 @@ item []:
             text = "ɛ" 
         intervals [47]:
             xmin = 3.58 
-            xmax = 3.67 
+            xmax = 3.66 
             text = "n̪" 
         intervals [48]:
-            xmin = 3.67 
+            xmin = 3.66 
             xmax = 3.73 
             text = "d̪z̪" 
         intervals [49]:
             xmin = 3.73 
-            xmax = 3.8 
+            xmax = 3.79 
             text = "ɨ" 
         intervals [50]:
-            xmin = 3.8 
+            xmin = 3.79 
             xmax = 4.37 
             text = "" 
         intervals [51]:
@@ -352,10 +352,10 @@ item []:
             text = "d̪" 
         intervals [55]:
             xmin = 4.55 
-            xmax = 4.61 
+            xmax = 4.6 
             text = "ɛ" 
         intervals [56]:
-            xmin = 4.61 
+            xmin = 4.6 
             xmax = 4.75 
             text = "u" 
         intervals [57]:
@@ -428,10 +428,10 @@ item []:
             text = "a" 
         intervals [74]:
             xmin = 6.77 
-            xmax = 6.91 
+            xmax = 6.92 
             text = "" 
         intervals [75]:
-            xmin = 6.91 
+            xmin = 6.92 
             xmax = 6.95 
             text = "z̪" 
         intervals [76]:
@@ -504,10 +504,10 @@ item []:
             text = "tʂ" 
         intervals [93]:
             xmin = 7.97 
-            xmax = 8.03 
+            xmax = 8.02 
             text = "ɨ" 
         intervals [94]:
-            xmin = 8.03 
+            xmin = 8.02 
             xmax = 8.11 
             text = "z̪" 
         intervals [95]:

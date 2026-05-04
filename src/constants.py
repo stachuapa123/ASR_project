@@ -4,7 +4,7 @@ import torchaudio.transforms as T
 class Constants:
     # ---- spectrogram ----
     SAMPLE_RATE = 16000  # 16000 pomiarow cisnienia na sekunde
-    N_FFT = 400  # 25 ms — tyle trwa jedna ramka (400 probek przy 16 kHz)
+    N_FFT = 1024  # 25 ms — tyle trwa jedna ramka (400 probek przy 16 kHz)
     HOP_LENGTH = 160  # 10 ms -> 1 spec frame = 10 ms
     N_MELS = 128
 

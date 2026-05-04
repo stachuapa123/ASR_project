@@ -42,14 +42,14 @@ item []:
             text = "rozstrzygnąć" 
         intervals [8]:
             xmin = 2.18 
-            xmax = 2.57 
+            xmax = 2.54 
             text = "sporu" 
         intervals [9]:
-            xmin = 2.57 
-            xmax = 2.6 
+            xmin = 2.54 
+            xmax = 2.58 
             text = "o" 
         intervals [10]:
-            xmin = 2.6 
+            xmin = 2.58 
             xmax = 3.12 
             text = "charty" 
         intervals [11]:
@@ -62,10 +62,10 @@ item []:
             text = "po" 
         intervals [13]:
             xmin = 3.78 
-            xmax = 4.18 
+            xmax = 4.17 
             text = "porannych" 
         intervals [14]:
-            xmin = 4.18 
+            xmin = 4.17 
             xmax = 5.01 
             text = "aktywnościach" 
         intervals [15]:
@@ -94,10 +94,10 @@ item []:
             text = "aby" 
         intervals [21]:
             xmin = 7.41 
-            xmax = 7.94 
+            xmax = 7.93 
             text = "zażegnać" 
         intervals [22]:
-            xmin = 7.94 
+            xmin = 7.93 
             xmax = 8.25 
             text = "choćby" 
         intervals [23]:
@@ -110,26 +110,26 @@ item []:
             text = "chwilę" 
         intervals [25]:
             xmin = 8.65 
-            xmax = 9.06 
+            xmax = 9.08 
             text = "spór" 
         intervals [26]:
-            xmin = 9.06 
+            xmin = 9.08 
             xmax = 9.19 
             text = "" 
         intervals [27]:
             xmin = 9.19 
-            xmax = 9.57 
+            xmax = 9.53 
             text = "między" 
         intervals [28]:
-            xmin = 9.57 
+            xmin = 9.53 
             xmax = 10.59 
             text = "asesorem" 
         intervals [29]:
             xmin = 10.59 
-            xmax = 10.74 
+            xmax = 10.73 
             text = "" 
         intervals [30]:
-            xmin = 10.74 
+            xmin = 10.73 
             xmax = 10.78 
             text = "a" 
         intervals [31]:
@@ -320,14 +320,14 @@ item []:
             text = "r" 
         intervals [40]:
             xmin = 2.43 
-            xmax = 2.57 
+            xmax = 2.54 
             text = "u" 
         intervals [41]:
-            xmin = 2.57 
-            xmax = 2.6 
+            xmin = 2.54 
+            xmax = 2.58 
             text = "ɔ" 
         intervals [42]:
-            xmin = 2.6 
+            xmin = 2.58 
             xmax = 2.75 
             text = "x" 
         intervals [43]:
@@ -384,10 +384,10 @@ item []:
             text = "ɨ" 
         intervals [56]:
             xmin = 4.06 
-            xmax = 4.18 
+            xmax = 4.17 
             text = "x" 
         intervals [57]:
-            xmin = 4.18 
+            xmin = 4.17 
             xmax = 4.24 
             text = "a" 
         intervals [58]:
@@ -564,18 +564,18 @@ item []:
             text = "ɡ" 
         intervals [101]:
             xmin = 7.75 
-            xmax = 7.81 
+            xmax = 7.8 
             text = "n̪" 
         intervals [102]:
-            xmin = 7.81 
+            xmin = 7.8 
             xmax = 7.86 
             text = "a" 
         intervals [103]:
             xmin = 7.86 
-            xmax = 7.94 
+            xmax = 7.93 
             text = "tɕ" 
         intervals [104]:
-            xmin = 7.94 
+            xmin = 7.93 
             xmax = 8.02 
             text = "x" 
         intervals [105]:
@@ -636,10 +636,10 @@ item []:
             text = "u" 
         intervals [119]:
             xmin = 9.0 
-            xmax = 9.06 
+            xmax = 9.08 
             text = "r" 
         intervals [120]:
-            xmin = 9.06 
+            xmin = 9.08 
             xmax = 9.19 
             text = "" 
         intervals [121]:
@@ -660,14 +660,14 @@ item []:
             text = "d̪z̪" 
         intervals [125]:
             xmin = 9.49 
-            xmax = 9.57 
+            xmax = 9.53 
             text = "ɨ" 
         intervals [126]:
-            xmin = 9.57 
-            xmax = 10.74 
+            xmin = 9.53 
+            xmax = 10.73 
             text = "" 
         intervals [127]:
-            xmin = 10.74 
+            xmin = 10.73 
             xmax = 10.78 
             text = "a" 
         intervals [128]:
