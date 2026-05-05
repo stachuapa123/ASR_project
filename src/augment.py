@@ -22,7 +22,8 @@ def augment_audio(audio, sr=C.SAMPLE_RATE,
     if isinstance(audio, np.ndarray):
         audio = torch.from_numpy(audio).float()
     
-    # 1. dodaj szum
+    # szum -> tutaj mamy ustawione na od 15 db do 30 db, im ta wartość MNIEJSZA, tym szum jest głośniejszy 
+    # czyli dla 30db szum jest o 30 db cichszy niż mowa
     if torch.rand(1).item() < noiseprob:
         snr_db = noise_level[0] + (noise_level[1] - noise_level[0]) * torch.rand(1).item()
         signal_power = audio.pow(2).mean()
@@ -31,12 +32,13 @@ def augment_audio(audio, sr=C.SAMPLE_RATE,
             noise = torch.randn_like(audio) * noise_power.sqrt()
             audio = audio + noise
     
-    # 2. zmień głośność
+    # 2. zmień głośność - tutaj mamy ustawione na od -3 db do +3 db, im ta wartość MNIEJSZA, tym głośność jest mniejsza
+    # to mnozy glosnosc logarytmicznie wiec dla -3 db glosnosc jest o polowe mniejsza, a dla +3 db jest o polowe większa
     if torch.rand(1).item() < gainprob:
         gain_db = gain_range[0] + (gain_range[1] - gain_range[0]) * torch.rand(1).item()
         audio = audio * (10 ** (gain_db / 20))
     
-    # 3. zmień tempo
+    # 3. zmień tempo, raczej nie zmieniaj bo to zaburzy etykiety
     if torch.rand(1).item() < tempo_prob:
         rate = tempo_range[0] + (tempo_range[1] - tempo_range[0]) * torch.rand(1).item()
         audio = torchaudio.functional.speed(audio.unsqueeze(0), sr, rate)[0].squeeze(0)

@@ -214,7 +214,9 @@ class PhonemeWindowDataset(Dataset):
         return window, label
 
 def build_augmented_cache(data_dir, output_path, n_augmentations=5, 
-                          standardize=True, silences_same=True):
+                          standardize=True, silences_same=True,
+                        noiseprob=0.3, gainprob=0.3, tempo_prob=0.0, 
+                        noise_level=(15, 30), gain_range=(-3, 3), tempo_range=(0.9, 1.1)):
     """Buduje cache z N zaaugmentowanymi wariantami każdego pliku.
     
     Cache structure:
@@ -251,7 +253,9 @@ def build_augmented_cache(data_dir, output_path, n_augmentations=5,
             
             for aug_idx in range(n_augmentations):
                 # zaaugmentuj kopię
-                audio_aug = augment_audio(audio_orig.copy(), sr)
+                audio_aug = augment_audio(audio_orig.copy(), sr,
+                                           noiseprob=noiseprob, gainprob=gainprob, tempo_prob=tempo_prob,
+                                           noise_level=noise_level, gain_range=gain_range, tempo_range=tempo_range)
                 
                 # zrób mel
                 wav_t = torch.from_numpy(audio_aug).unsqueeze(0)
