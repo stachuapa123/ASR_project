@@ -87,7 +87,7 @@ IPA_TO_YOURS = {
     'rʲ':  'r',           # miękkie r (nie występuje w polskim, mapuję na twarde)
     
     # ─── Specjalne ───
-    '':    '',            # cisza między fonemami (zachowujemy puste)
+    '':    'sil',            # cisza między fonemami (zachowujemy puste)
     'sil': 'sil',
     'sp':  'sp',
     'spn': 'sp',          # spoken noise
@@ -179,6 +179,6 @@ def convert_folder(input_dir: str, output_dir: str, mapping: dict = None):
 # ─── UŻYCIE ─────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     convert_folder(
-        input_dir='./AutorskieDane/DirtyGrids',       # folder z MFA
-        output_dir='./AutorskieDane/AutorskiGlos',    # folder docelowy
+        input_dir='./AutorskieDane/BrudneGridy',       # folder z MFA
+        output_dir='./AutorskieDane/AutorskiDataset',    # folder docelowy
     )

@@ -1,0 +1,2 @@
+Nie zapominamy o programowaniu w różnorodnych środowiskach przetwarzania równoległego i wielowątkowego, a także inteligentnych systemach przetwarzania wiedzy, środowiskach klastrowych i super komputerowych. Studenci zainteresowani bazami danych i przetwarzaniem danych również nie będą rozczarowani.
+
