@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 from pathlib import Path
 from scipy import signal
 import warnings
-
+from .augment import augment_audio, SpecAugment
 
 def parse_phonemes(text_grid, silences_same=False):
 
@@ -117,6 +117,7 @@ class PhonemeWindowDataset(Dataset):
         verbose=True,
         standardize=True,
         silences_same=False,
+        augment=True,
     ):
         # recursively find every .TextGrid at any depth under data_dir
         tg_paths = sorted(str(p) for p in Path(data_dir).rglob("*.TextGrid"))
@@ -154,3 +155,140 @@ class PhonemeWindowDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
+
+
+class PhonemeWindowDataset2(Dataset):
+    def __init__(
+        self,
+        data_dir,
+        max_files=None,
+        verbose=True,
+        standardize=True,
+        silences_same=False,
+        augment_audio=None,
+    ):
+        self.standardize = standardize
+        self.silences_same = silences_same
+        self.augment_audio = augment_audio
+        
+        # Faza 1: znajdź wszystkie pary wav/TextGrid
+        tg_paths = sorted(str(p) for p in Path(data_dir).rglob("*.TextGrid"))
+        if verbose:
+            print(f"found {len(tg_paths)} TextGrid files under {data_dir}")
+        if max_files is not None:
+            tg_paths = tg_paths[:max_files]
+        
+        # Faza 2: wczytaj raz każdy plik, oblicz okienka i etykiety,
+        # zachowaj TYLKO (wav_path, window_start, label_idx) — nie sam mel
+        self.entries = []     # (wav_path, window_start_frame, label_idx)
+        
+        for i, tg in enumerate(tg_paths):
+            wav = tg[: -len(".TextGrid")] + ".wav"
+            if not os.path.exists(wav):
+                continue
+            try:
+                # Wczytaj raz BEZ augmentacji żeby znaleźć granice okienek + etykiety
+                # (etykieta to deterministyczna informacja, nie zależy od augmentacji)
+                mel = wav_to_logmel(wav, standardize=standardize)
+                with open(tg, "r", encoding="utf-8") as f:
+                    phonemes = parse_phonemes(f.read(), silences_same=silences_same)
+                
+                # Użyj twojej funkcji windows_and_labels — ale nie zachowuj mel
+                windows = windows_and_labels(mel, phonemes)
+                
+                # Zachowaj tylko start okna i etykietę, nie sam tensor
+                # Numerujemy okienka po kolei — start = i * SHIFT_FRAMES
+                for window_idx, (_, label) in enumerate(windows):
+                    start = window_idx * C.SHIFT_FRAMES
+                    self.entries.append((wav, start, label))
+                    
+            except Exception as e:
+                if verbose:
+                    print(f"skip {tg}: {e}")
+            
+            if verbose and (i + 1) % 100 == 0:
+                print(f"  processed {i + 1}/{len(tg_paths)} files, "
+                      f"{len(self.entries)} windows")
+        
+        if verbose:
+            print(f"total windows: {len(self.entries)}")
+            from collections import Counter
+            counts = Counter(e[2] for e in self.entries)
+            for i, l in enumerate(C.LABELS):
+                print(f"  {l:>9}: {counts.get(i, 0)}")
+        
+        # Cache wczytanych mel'ów (tylko gdy nie ma augmentacji)
+        self._mel_cache = {}
+        self._cache_max_size = 50
+
+    def __len__(self):
+        return len(self.entries)
+    
+    @property
+    def X(self):
+        """Compatibility property — kształt jaki miałby pełny tensor.
+        Nie buduje go faktycznie (zbyt drogie). Tylko shape do printu."""
+        return _ShapeProxy((len(self.entries), C.N_MELS, C.WIN_FRAMES))
+    
+    @property
+    def y(self):
+        """Tensor etykiet — to TANIE, więc faktycznie buduje."""
+        return torch.tensor([e[2] for e in self.entries], dtype=torch.long)
+    
+    def _get_mel(self, wav_path):
+        """Wczytaj plik audio, opcjonalnie zaugmentuj, zwróć mel."""
+        if self.augment_audio is None and wav_path in self._mel_cache:
+            return self._mel_cache[wav_path]
+        
+        sr, audio = wavfile.read(wav_path)
+        if np.issubdtype(audio.dtype, np.integer):
+            audio = audio.astype(np.float32) / np.iinfo(audio.dtype).max
+        else:
+            audio = audio.astype(np.float32)
+        
+        if self.augment_audio is not None:
+            audio = self.augment_audio(audio, sr)
+        
+        wav_t = torch.from_numpy(audio).unsqueeze(0)
+        mel = C.decibel_transformer(C.mel_transformer(wav_t)).squeeze(0)
+        
+        if self.standardize:
+            mel = (mel - mel.mean(dim=1, keepdim=True)) / (
+                mel.std(dim=1, keepdim=True) + 1e-8
+            )
+        
+        if self.augment_audio is None:
+            if len(self._mel_cache) >= self._cache_max_size:
+                self._mel_cache.pop(next(iter(self._mel_cache)))
+            self._mel_cache[wav_path] = mel
+        
+        return mel
+
+    def __getitem__(self, idx):
+        wav_path, start, label = self.entries[idx]
+        mel = self._get_mel(wav_path)
+        T = mel.shape[1]
+        end = start + C.WIN_FRAMES
+        
+        # NEW — ochrona gdy mel jest krótszy niż się spodziewamy
+        # (np. po tempo augmentation)
+        if end > T:
+            if T >= C.WIN_FRAMES:
+                # przesuń okno żeby się zmieściło
+                end = T
+                start = end - C.WIN_FRAMES
+            else:
+                # mel za krótki nawet na jedno okno — pad zerami
+                window = torch.zeros(C.N_MELS, C.WIN_FRAMES)
+                window[:, :T] = mel
+                return window, label
+        
+        window = mel[:, start:end].clone()
+        return window, label
+
+class _ShapeProxy:
+    def __init__(self, shape):
+        self.shape = torch.Size(shape)
+    
+    def __repr__(self):
+        return f'<lazy tensor shape={tuple(self.shape)}>'
