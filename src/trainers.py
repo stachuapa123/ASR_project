@@ -2,6 +2,10 @@ import torch
 import copy
 from pathlib import Path
 from .augment import SpecAugment
+import torchmetrics
+from torch import nn
+import torch.nn.functional as F
+
 
 def save_checkpoint(
     path, model, labels=None, config=None, epoch=None, val_metric=None, history=None
@@ -204,3 +208,43 @@ def evaluate_tm(model, data_loader, metric, device):
             y_pred = model(X_batch)
             metric.update(y_pred, y_batch)
     return metric.compute()
+
+
+class SoftCrossEntropyLoss(nn.Module):
+    """Cross-entropy z soft targets. Equivalent to KL divergence (do stałej).
+    
+    targets: (B, n_classes) tensor proporcji (suma per próbka = 1)
+    """
+    def __init__(self, label_smoothing=0.0):
+        super().__init__()
+        self.label_smoothing = label_smoothing
+    
+    def forward(self, logits, targets):
+        log_probs = F.log_softmax(logits, dim=1)
+        
+        if self.label_smoothing > 0:
+            n_classes = logits.shape[1]
+            targets = targets * (1 - self.label_smoothing) + self.label_smoothing / n_classes
+        
+        return -(targets * log_probs).sum(dim=1).mean()
+
+
+class SoftAccuracy:
+    """Liczy 'hard' accuracy: argmax predykcji vs argmax targetu."""
+    
+    def __init__(self, num_classes):
+        self.metric = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes)
+    
+    def update(self, preds, targets):
+        target_classes = targets.argmax(dim=1)      # NEW — argmax soft labels
+        self.metric.update(preds, target_classes)
+    
+    def reset(self):
+        self.metric.reset()
+    
+    def compute(self):
+        return self.metric.compute()
+    
+    def to(self, device):
+        self.metric = self.metric.to(device)
+        return self
