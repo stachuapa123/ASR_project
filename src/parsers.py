@@ -213,7 +213,7 @@ class PhonemeWindowDataset(Dataset):
         window = mel[:, start:end].clone()
         return window, label
 
-def build_augmented_cache(data_dir, output_path, n_augmentations=5, 
+def build_augmented_cache(data_dir, output_path=None, n_augmentations=5, 
                           standardize=True, silences_same=True,
                         noiseprob=0.3, gainprob=0.3, tempo_prob=0.0, 
                         noise_level=(15, 30), gain_range=(-3, 3), tempo_range=(0.9, 1.1)):
@@ -303,8 +303,11 @@ def build_augmented_cache(data_dir, output_path, n_augmentations=5,
     print(f'final: X={X.shape}, y={y.shape}')
     print(f'rozmiar: {X.element_size() * X.nelement() / 1e9:.2f} GB')
     
-    torch.save({'X': X, 'y': y, 'n_aug': n_augmentations}, output_path)
-    print(f'zapisano do {output_path}')
+    if output_path is not None:
+        torch.save({'X': X, 'y': y, 'n_aug': n_augmentations}, output_path)
+        print(f'zapisano do {output_path}')
+    else:
+        print('Dane nie zostały zapisane na dysku.')
 
 class CachedPhonemeDataset(Dataset):
     def __init__(self, X, y, augment=None):
