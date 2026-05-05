@@ -46,14 +46,15 @@ def augment_audio(audio, sr=C.SAMPLE_RATE,
     return audio.numpy() 
 
 class SpecAugment:
-    def __init__(self):
-        self.freq_mask = T.FrequencyMasking(freq_mask_param=0.125 * C.WIN_MS)   # 10/80 = 12%
-        self.time_mask = T.TimeMasking(time_mask_param=0.25 * C.WIN_MS / C.SHIFT_MS)          # 2/8 = 25% max
+    def __init__(self, freq_mask_percent=0.1, time_mask_percent=0.125, p=0.3):
+        self.freq_mask = T.FrequencyMasking(freq_mask_param=int(freq_mask_percent * C.N_MELS))
+        self.time_mask = T.TimeMasking(time_mask_param=int(time_mask_percent * C.WIN_FRAMES))
+        self.p = p
     
     def __call__(self, mel):
-        if torch.rand(1).item() < 0.5:
+        if torch.rand(1).item() < self.p:
             mel = self.freq_mask(mel)
-        if torch.rand(1).item() < 0.5:
+        if torch.rand(1).item() < self.p:
             mel = self.time_mask(mel)
         return mel
     

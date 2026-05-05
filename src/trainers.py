@@ -1,7 +1,7 @@
 import torch
 import copy
 from pathlib import Path
-
+from .augment import SpecAugment
 
 def save_checkpoint(
     path, model, labels=None, config=None, epoch=None, val_metric=None, history=None
@@ -56,6 +56,7 @@ def train_model(
     grad_clip=None,
     epoch_callback=None,
     verbose=True,
+    spec_augment=None,
 ):
     """
     Train with LR scheduling, early stopping, best-model checkpointing.
@@ -100,6 +101,9 @@ def train_model(
 
         for index, (X_batch, y_batch) in enumerate(train_loader):
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+
+            if spec_augment is not None:
+                X_batch = spec_augment(X_batch)
 
             optimizer.zero_grad()
             y_pred = model(X_batch)
