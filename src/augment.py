@@ -4,9 +4,14 @@ import torch
 import torchaudio
 import torchaudio.transforms as T
 import numpy as np
+from scipy.io import wavfile
+from pathlib import Path
+from collections import Counter
+
+
 
 def augment_audio(audio, sr=C.SAMPLE_RATE,
-                  noiseprob=0.3, gainprob=0.3, tempo_prob=0.2,
+                  noiseprob=0.3, gainprob=0.3, tempo_prob=0.0,
                   noise_level=(15, 30),     # SNR dB range
                   gain_range=(-3, 3),        # dB range
                   tempo_range=(0.9, 1.1)):
@@ -51,3 +56,6 @@ class SpecAugment:
         if torch.rand(1).item() < 0.5:
             mel = self.time_mask(mel)
         return mel
+    
+
+

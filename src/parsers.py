@@ -9,7 +9,7 @@ from scipy import signal
 import warnings
 from .augment import augment_audio, SpecAugment
 
-def parse_phonemes(text_grid, silences_same=False):
+def parse_phonemes(text_grid, silences_same=True):
 
     phonemes = []
     in_phones = False
@@ -108,7 +108,39 @@ def windows_and_labels_center(mel, phonemes):
         out.append((mel[:, start:end].clone(), C.LABEL2IDX[label]))
     return out
 
-
+def build_audio_cache(data_dir, output_path, silences_same=True):
+    """Buduje cache z surowymi audio + parsedphonemes."""
+    
+    tg_paths = sorted(str(p) for p in Path(data_dir).rglob('*.TextGrid'))
+    
+    audio_data = {}        # wav_path -> torch.Tensor (audio samples)
+    phoneme_data = {}      # wav_path -> list of (xmin, xmax, label_idx)
+    
+    for i, tg in enumerate(tg_paths):
+        wav_path = tg[:-len('.TextGrid')] + '.wav'
+        if not Path(wav_path).exists():
+            continue
+        
+        try:
+            sr, audio = wavfile.read(wav_path)
+            if np.issubdtype(audio.dtype, np.integer):
+                audio = audio.astype(np.float32) / np.iinfo(audio.dtype).max
+            else:
+                audio = audio.astype(np.float32)
+            
+            with open(tg, 'r', encoding='utf-8') as f:
+                phonemes = parse_phonemes(f.read(), silences_same=silences_same)
+            
+            audio_data[wav_path] = torch.from_numpy(audio)
+            phoneme_data[wav_path] = phonemes
+        except Exception as e:
+            print(f'skip {tg}: {e}')
+        
+        if (i + 1) % 200 == 0:
+            print(f'  {i+1}/{len(tg_paths)}')
+    
+    torch.save({'audio': audio_data, 'phonemes': phoneme_data}, output_path)
+    print(f'zapisano {len(audio_data)} plików')
 class PhonemeWindowDataset(Dataset):
     def __init__(
         self,
@@ -117,7 +149,7 @@ class PhonemeWindowDataset(Dataset):
         verbose=True,
         standardize=True,
         silences_same=False,
-        augment=True,
+        augment=False,
     ):
         # recursively find every .TextGrid at any depth under data_dir
         tg_paths = sorted(str(p) for p in Path(data_dir).rglob("*.TextGrid"))
@@ -157,112 +189,7 @@ class PhonemeWindowDataset(Dataset):
         return self.X[idx], self.y[idx]
 
 
-class PhonemeWindowDataset2(Dataset):
-    def __init__(
-        self,
-        data_dir,
-        max_files=None,
-        verbose=True,
-        standardize=True,
-        silences_same=False,
-        augment_audio=None,
-    ):
-        self.standardize = standardize
-        self.silences_same = silences_same
-        self.augment_audio = augment_audio
-        
-        # Faza 1: znajdź wszystkie pary wav/TextGrid
-        tg_paths = sorted(str(p) for p in Path(data_dir).rglob("*.TextGrid"))
-        if verbose:
-            print(f"found {len(tg_paths)} TextGrid files under {data_dir}")
-        if max_files is not None:
-            tg_paths = tg_paths[:max_files]
-        
-        # Faza 2: wczytaj raz każdy plik, oblicz okienka i etykiety,
-        # zachowaj TYLKO (wav_path, window_start, label_idx) — nie sam mel
-        self.entries = []     # (wav_path, window_start_frame, label_idx)
-        
-        for i, tg in enumerate(tg_paths):
-            wav = tg[: -len(".TextGrid")] + ".wav"
-            if not os.path.exists(wav):
-                continue
-            try:
-                # Wczytaj raz BEZ augmentacji żeby znaleźć granice okienek + etykiety
-                # (etykieta to deterministyczna informacja, nie zależy od augmentacji)
-                mel = wav_to_logmel(wav, standardize=standardize)
-                with open(tg, "r", encoding="utf-8") as f:
-                    phonemes = parse_phonemes(f.read(), silences_same=silences_same)
-                
-                # Użyj twojej funkcji windows_and_labels — ale nie zachowuj mel
-                windows = windows_and_labels(mel, phonemes)
-                
-                # Zachowaj tylko start okna i etykietę, nie sam tensor
-                # Numerujemy okienka po kolei — start = i * SHIFT_FRAMES
-                for window_idx, (_, label) in enumerate(windows):
-                    start = window_idx * C.SHIFT_FRAMES
-                    self.entries.append((wav, start, label))
-                    
-            except Exception as e:
-                if verbose:
-                    print(f"skip {tg}: {e}")
-            
-            if verbose and (i + 1) % 100 == 0:
-                print(f"  processed {i + 1}/{len(tg_paths)} files, "
-                      f"{len(self.entries)} windows")
-        
-        if verbose:
-            print(f"total windows: {len(self.entries)}")
-            from collections import Counter
-            counts = Counter(e[2] for e in self.entries)
-            for i, l in enumerate(C.LABELS):
-                print(f"  {l:>9}: {counts.get(i, 0)}")
-        
-        # Cache wczytanych mel'ów (tylko gdy nie ma augmentacji)
-        self._mel_cache = {}
-        self._cache_max_size = 50
 
-    def __len__(self):
-        return len(self.entries)
-    
-    @property
-    def X(self):
-        """Compatibility property — kształt jaki miałby pełny tensor.
-        Nie buduje go faktycznie (zbyt drogie). Tylko shape do printu."""
-        return _ShapeProxy((len(self.entries), C.N_MELS, C.WIN_FRAMES))
-    
-    @property
-    def y(self):
-        """Tensor etykiet — to TANIE, więc faktycznie buduje."""
-        return torch.tensor([e[2] for e in self.entries], dtype=torch.long)
-    
-    def _get_mel(self, wav_path):
-        """Wczytaj plik audio, opcjonalnie zaugmentuj, zwróć mel."""
-        if self.augment_audio is None and wav_path in self._mel_cache:
-            return self._mel_cache[wav_path]
-        
-        sr, audio = wavfile.read(wav_path)
-        if np.issubdtype(audio.dtype, np.integer):
-            audio = audio.astype(np.float32) / np.iinfo(audio.dtype).max
-        else:
-            audio = audio.astype(np.float32)
-        
-        if self.augment_audio is not None:
-            audio = self.augment_audio(audio, sr)
-        
-        wav_t = torch.from_numpy(audio).unsqueeze(0)
-        mel = C.decibel_transformer(C.mel_transformer(wav_t)).squeeze(0)
-        
-        if self.standardize:
-            mel = (mel - mel.mean(dim=1, keepdim=True)) / (
-                mel.std(dim=1, keepdim=True) + 1e-8
-            )
-        
-        if self.augment_audio is None:
-            if len(self._mel_cache) >= self._cache_max_size:
-                self._mel_cache.pop(next(iter(self._mel_cache)))
-            self._mel_cache[wav_path] = mel
-        
-        return mel
 
     def __getitem__(self, idx):
         wav_path, start, label = self.entries[idx]
@@ -286,9 +213,152 @@ class PhonemeWindowDataset2(Dataset):
         window = mel[:, start:end].clone()
         return window, label
 
-class _ShapeProxy:
-    def __init__(self, shape):
-        self.shape = torch.Size(shape)
+def build_augmented_cache(data_dir, output_path, n_augmentations=5, 
+                          standardize=True, silences_same=True):
+    """Buduje cache z N zaaugmentowanymi wariantami każdego pliku.
     
-    def __repr__(self):
-        return f'<lazy tensor shape={tuple(self.shape)}>'
+    Cache structure:
+        X: (n_total_windows, n_aug, n_mels, win_frames)
+        y: (n_total_windows,)
+    """
+    
+    tg_paths = sorted(str(p) for p in Path(data_dir).rglob('*.TextGrid'))
+    print(f'znaleziono {len(tg_paths)} plików')
+    
+    all_augmented_windows = []     # lista list — każdy plik ma N wariantów
+    all_labels = []
+    
+    for i, tg in enumerate(tg_paths):
+        wav_path = tg[:-len('.TextGrid')] + '.wav'
+        if not Path(wav_path).exists():
+            continue
+        
+        try:
+            # 1. Wczytaj audio raz
+            sr, audio_orig = wavfile.read(wav_path)
+            if np.issubdtype(audio_orig.dtype, np.integer):
+                audio_orig = audio_orig.astype(np.float32) / np.iinfo(audio_orig.dtype).max
+            else:
+                audio_orig = audio_orig.astype(np.float32)
+            
+            # 2. Wczytaj phoneme labels (raz, niezależne od augmentacji)
+            with open(tg, 'r', encoding='utf-8') as f:
+                phonemes = parse_phonemes(f.read(), silences_same=silences_same)
+            
+            # 3. Wygeneruj N zaaugmentowanych wersji
+            file_windows_per_aug = []  # [n_aug] -> [n_windows] -> tensor
+            file_labels = None         # labels są te same dla wszystkich aug (bez tempo!)
+            
+            for aug_idx in range(n_augmentations):
+                # zaaugmentuj kopię
+                audio_aug = augment_audio(audio_orig.copy(), sr)
+                
+                # zrób mel
+                wav_t = torch.from_numpy(audio_aug).unsqueeze(0)
+                mel = C.decibel_transformer(C.mel_transformer(wav_t)).squeeze(0)
+                if standardize:
+                    mel = (mel - mel.mean(dim=1, keepdim=True)) / (
+                        mel.std(dim=1, keepdim=True) + 1e-8
+                    )
+                
+                # pocięć na okienka
+                windows_with_labels = windows_and_labels(mel, phonemes)
+                
+                if file_labels is None:
+                    # zapisz labels tylko raz (te same dla wszystkich aug)
+                    file_labels = [lbl for _, lbl in windows_with_labels]
+                
+                file_windows_per_aug.append([w for w, _ in windows_with_labels])
+            
+            # 4. Zsynchronizuj — dla każdego okna mamy n_aug wersji
+            # Sprawdź że wszystkie aug mają tyle samo okien
+            n_windows = len(file_windows_per_aug[0])
+            if not all(len(w) == n_windows for w in file_windows_per_aug):
+                print(f'skip {tg}: różne ilości okien między aug')
+                continue
+            
+            # zbuduj tensor (n_windows, n_aug, n_mels, win_frames)
+            stacked = torch.stack([
+                torch.stack(file_windows_per_aug[a])    # (n_windows, n_mels, win_frames)
+                for a in range(n_augmentations)
+            ], dim=1)                                    # (n_windows, n_aug, ...)
+            
+            all_augmented_windows.append(stacked)
+            all_labels.extend(file_labels)
+            
+        except Exception as e:
+            print(f'skip {tg}: {e}')
+        
+        if (i + 1) % 100 == 0:
+            print(f'  {i+1}/{len(tg_paths)} files, '
+                  f'{sum(s.shape[0] for s in all_augmented_windows)} windows')
+    
+    X = torch.cat(all_augmented_windows, dim=0)
+    y = torch.tensor(all_labels, dtype=torch.long)
+    
+    print(f'final: X={X.shape}, y={y.shape}')
+    print(f'rozmiar: {X.element_size() * X.nelement() / 1e9:.2f} GB')
+    
+    torch.save({'X': X, 'y': y, 'n_aug': n_augmentations}, output_path)
+    print(f'zapisano do {output_path}')
+
+class CachedPhonemeDataset(Dataset):
+    def __init__(self, X, y, augment=None):
+        self.X = X
+        self.y = y
+        self.augment = augment
+    
+    def __len__(self):
+        return len(self.y)
+    
+    def __getitem__(self, idx):
+        x = self.X[idx]
+        if self.augment is not None:
+            x = x.clone()           # nie modyfikuj cache
+            x = self.augment(x)
+        return x, self.y[idx]
+    
+
+class AugmentedCacheDataset(Dataset):
+    """Dataset który losowo wybiera jeden z N wariantów."""
+    
+    def __init__(self, X, y, train=True):
+        self.X = X         # (n_windows, n_aug, n_mels, win_frames)
+        self.y = y
+        self.train = train  # train: random aug, val: zawsze aug 0
+    
+    def __len__(self):
+        return len(self.y)
+    
+    def __getitem__(self, idx):
+        if self.train:
+            aug_idx = torch.randint(self.X.shape[1], (1,)).item()
+        else:
+            aug_idx = 0    # walidacja deterministycznie
+        return self.X[idx, aug_idx], self.y[idx]
+    
+class DoubledAugmentedCacheDataset(Dataset):
+    """Każda próbka pojawia się dwa razy: raz aug, raz nie."""
+    
+    def __init__(self, X, y, train=True):
+        self.X = X
+        self.y = y
+        self.train = train
+    
+    def __len__(self):
+        # podwajamy tylko podczas treningu
+        return len(self.y) * 2 if self.train else len(self.y)
+    
+    def __getitem__(self, idx):
+        if not self.train:
+            return self.X[idx, 0], self.y[idx]
+        
+        actual_idx = idx % len(self.y)
+        is_augmented_pass = idx >= len(self.y)
+        
+        if is_augmented_pass:
+            aug_idx = torch.randint(1, self.X.shape[1], (1,)).item()
+        else:
+            aug_idx = 0          # oryginał
+        
+        return self.X[actual_idx, aug_idx], self.y[actual_idx]
