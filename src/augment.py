@@ -54,10 +54,10 @@ class SpecAugment:
         self.p = p
     
     def __call__(self, mel):
-        if torch.rand(1).item() < self.p:
+        if torch.rand(1, device=mel.device).item() < self.p:
             mel = self.freq_mask(mel)
-        if torch.rand(1).item() < self.p:
-            mel = self.time_mask(mel)
+        if torch.rand(1, device=mel.device).item() < self.p:
+            mel = self.time_mask(mel) #najwyzej trzeba bedzie TO zmienic
         return mel
     
 
