@@ -531,14 +531,14 @@ class DoubledAugmentedCacheDataset(Dataset):
 class SoftLabelCacheDataset(Dataset):
     """Dataset z soft labels + losowy wybór wariantu audio aug."""
     
-    def __init__(self, X, y, train=True):
+    def __init__(self, X, y, train=True, device='cuda'):
         """
         X: (n_windows, n_aug, n_mels, win_frames) — features
         y: (n_windows, n_classes) — soft labels (proporcje fonemów)
         train: bool — train=True losuje wariant, train=False używa oryginału (idx 0)
         """
-        self.X = X
-        self.y = y                  # NEW — 2D tensor soft labels
+        self.X = X.to(device)  # przenieś do GPU jeśli dostępne
+        self.y = y.to(device)  # przenieś do GPU jeśli dostępne
         self.train = train
     
     def __len__(self):
@@ -554,9 +554,9 @@ class SoftLabelCacheDataset(Dataset):
 class DoubledSoftLabelCacheDataset(Dataset):
     """Soft labels + każda próbka 2× per epoka (raz oryginał, raz aug)."""
     
-    def __init__(self, X, y, train=True):
-        self.X = X
-        self.y = y
+    def __init__(self, X, y, train=True, device='cuda'):
+        self.X = X.to(device)  # przenieś do GPU jeśli dostępne
+        self.y = y.to(device)  # przenieś do GPU jeśli dostępne
         self.train = train
     
     def __len__(self):
