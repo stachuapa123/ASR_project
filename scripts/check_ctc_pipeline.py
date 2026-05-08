@@ -58,7 +58,8 @@ def main():
     # 1. Dataset Generation
     dataset = CTCDataset(
         data_dir=data_dir,
-        augment=True,
+        cache_mode=True,
+        apply_augmentations=True,
         max_files=args.max_files,
         noiseprob=0.5,
         gainprob=0.5,
