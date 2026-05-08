@@ -2,14 +2,20 @@ import argparse
 import os
 from pathlib import Path
 import torch
-import torchmetrics
-from torch import nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
 from src.constants import Constants as C
-from src.parsers import PhonemeWindowDataset
+from src.parsers import build_augmented_cache_soft, SoftLabelCacheDataset
+from src.augment import SpecAugment
 from src.NeuralModel import CRNN
-from src.trainers import train_model, evaluate_tm, save_checkpoint, load_checkpoint
+from src.trainers import (
+    train_model,
+    evaluate_tm,
+    save_checkpoint,
+    load_checkpoint,
+    SoftCrossEntropyLoss,
+    SoftAccuracy,
+)
 from src.evaluator import evaluate_audio
 
 
@@ -65,47 +71,61 @@ def main():
     log(f"data_dir: {data_dir}")
     log(f"device: {args.device}")
 
-    dataset = PhonemeWindowDataset(
-        data_dir,
-        max_files=args.max_files,
-        verbose=True,
+    dataset = None  # Replaced by soft cache
+    log(f"generating soft-label cache in RAM")
+    data = build_augmented_cache_soft(
+        data_dir=data_dir,
+        output_path=None,
+        n_augmentations=4,
         standardize=True,
-        silences_same=False,
+        silences_same=True,
+        max_files=args.max_files,
+        noiseprob=0.5,
+        gainprob=0.5,
+        tempo_prob=0.0,
+        noise_level=(10, 30),
+        gain_range=(-5, 5),
+        tempo_range=(0.95, 1.05),
     )
-    if len(dataset) == 0:
-        raise SystemExit("No windows produced from the dataset")
-    log(f"total windows: {len(dataset)}")
+    X_data = data["X"]
+    y_data = data["y"]
+    n_total = len(y_data)
 
-    if len(dataset) < 2:
+    if n_total == 0:
+        raise SystemExit("No windows produced from the dataset")
+    log(f"total windows: {n_total}")
+
+    if n_total < 2:
         log("dataset too small for split, using the same set for train/val")
-        train_loader = DataLoader(
-            dataset, batch_size=args.batch_size, shuffle=True, num_workers=0
-        )
-        val_loader = DataLoader(
-            dataset, batch_size=args.batch_size, shuffle=False, num_workers=0
-        )
+        train_idx = list(range(n_total))
+        val_idx = list(range(n_total))
     else:
-        n_val = max(1, int(0.2 * len(dataset)))
-        n_train = len(dataset) - n_val
-        train_set, val_set = random_split(
-            dataset,
-            [n_train, n_val],
-            generator=torch.Generator().manual_seed(0),
-        )
-        train_loader = DataLoader(
-            train_set, batch_size=args.batch_size, shuffle=True, num_workers=0
-        )
-        val_loader = DataLoader(
-            val_set, batch_size=args.batch_size, shuffle=False, num_workers=0
-        )
-        log(f"train windows: {len(train_set)}, val windows: {len(val_set)}")
+        n_val = max(1, int(0.2 * n_total))
+        n_train = n_total - n_val
+        indices = torch.randperm(n_total).tolist()
+        train_idx = indices[:n_train]
+        val_idx = indices[n_train:]
+        log(f"train windows: {n_train}, val windows: {n_val}")
+
+    train_set = SoftLabelCacheDataset(
+        X_data[train_idx], y_data[train_idx], train=True, device="cpu"
+    )
+    val_set = SoftLabelCacheDataset(
+        X_data[val_idx], y_data[val_idx], train=False, device="cpu"
+    )
+
+    train_loader = DataLoader(
+        train_set, batch_size=args.batch_size, shuffle=True, num_workers=0
+    )
+    val_loader = DataLoader(
+        val_set, batch_size=args.batch_size, shuffle=False, num_workers=0
+    )
 
     model = CRNN().to(args.device)
     optimizer = torch.optim.NAdam(model.parameters(), lr=1e-3)
-    loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1)
-    metric = torchmetrics.Accuracy(task="multiclass", num_classes=C.N_CLASSES).to(
-        args.device
-    )
+    loss_fn = SoftCrossEntropyLoss(label_smoothing=0.05)
+    metric = SoftAccuracy(num_classes=C.N_CLASSES).to(args.device)
+    mel_augmenter = SpecAugment(freq_mask_percent=0.2, time_mask_percent=0.125, p=0.5)
 
     log("training model")
     history = train_model(
@@ -121,6 +141,7 @@ def main():
         device=args.device,
         early_stop_patience=1,
         verbose=args.verbose,
+        spec_augment=mel_augmenter,
     )
     log("training completed")
 
@@ -132,7 +153,8 @@ def main():
     with torch.no_grad():
         logits = model(X_batch.to(args.device))
         preds = logits.argmax(dim=1).cpu()
-        batch_acc = (preds == y_batch).float().mean().item()
+        y_batch_labels = y_batch.argmax(dim=1).cpu()
+        batch_acc = (preds == y_batch_labels).float().mean().item()
     log(f"batch shapes: X={tuple(X_batch.shape)}, y={tuple(y_batch.shape)}")
     log(f"logits shape: {tuple(logits.shape)}")
     log(f"batch accuracy: {batch_acc:.4f}")
