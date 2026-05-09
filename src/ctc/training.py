@@ -54,8 +54,6 @@ def evaluate_epoch(
     total_loss = 0.0
     total_samples = 0
 
-    device_type = "cuda" if device.type == "cuda" else "cpu"
-
     with torch.no_grad():
         for mels, targets, input_lengths, target_lengths in val_loader:
             mels = mels.to(device, non_blocking=True)
@@ -64,8 +62,8 @@ def evaluate_epoch(
             target_lengths = target_lengths.to(device, non_blocking=True)
 
             with torch.amp.autocast(
-                device_type=device_type,
-                enabled=(device_type == "cuda"),
+                device_type=device.type,
+                enabled=(device.type == "cuda"),
             ):
                 logits = model(mels)  # (B, T', C+1)
 
@@ -114,13 +112,11 @@ def train_ctc(
     """
     model.to(device)
 
-    device_type = "cuda" if device.type == "cuda" else "cpu"
-
     # If caller did not pass a scaler, create a "no-op" one for CUDA, or disable on CPU.
     if scaler is None:
         scaler = torch.amp.GradScaler(
-            device=device_type,
-            enabled=(device_type == "cuda"),
+            device=device.type,
+            enabled=(device.type == "cuda"),
         )
 
     best_val_loss = float("inf")
@@ -145,8 +141,8 @@ def train_ctc(
             optimizer.zero_grad(set_to_none=True)
 
             with torch.amp.autocast(
-                device_type=device_type,
-                enabled=(device_type == "cuda"),
+                device_type=device.type,
+                enabled=(device.type == "cuda"),
             ):
                 logits = model(mels)  # (B, T', C+1)
 

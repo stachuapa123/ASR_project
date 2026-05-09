@@ -140,16 +140,13 @@ def main() -> int:
         pct_start=0.2,
     )
 
-    device_type = "cuda" if device.type == "cuda" else "cpu"
-    scaler = torch.amp.GradScaler(device=device_type, enabled=(device_type == "cuda"))
+    scaler = torch.amp.GradScaler(device=device.type, enabled=(device.type == "cuda"))
 
     mel_augmenter = SpecAugment(freq_mask_percent=0.2, time_mask_percent=0.125, p=0.5)
 
     # 5. Training with temporary checkpoint
     log("training model with AMP and CTCLoss")
-    tmp_ckpt = os.path.join(
-        project_root, "trained_models", "check_pipeline_ctc_tmp.pt"
-    )
+    tmp_ckpt = os.path.join(project_root, "trained_models", "check_pipeline_ctc_tmp.pt")
 
     try:
         model = train_ctc(

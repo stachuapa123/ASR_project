@@ -96,3 +96,14 @@ class CTCConfig:
         if torch.backends.mps.is_available():
             return torch.device("mps")
         return torch.device("cpu")
+
+    @staticmethod
+    def setup_cuda_optimizations() -> None:
+        """
+        Enable CUDA/cuDNN optimizations for faster training on modern GPUs.
+        Particularly beneficial for RTX 4070 Ti SUPER and similar high-end cards.
+        """
+        if torch.cuda.is_available():
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            torch.backends.cudnn.benchmark = True

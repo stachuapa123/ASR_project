@@ -81,12 +81,19 @@ class CTCDataset(Dataset):
 
         self.cached_data: list[tuple[torch.Tensor, torch.Tensor]] = []
         if self.cache_mode:
-            print(f"Pre-computing and caching {len(self.samples)} files...")
+            print(f"Pre-computing and caching {len(self.samples)} files into RAM...")
             for idx in tqdm.tqdm(range(len(self.samples)), desc="CTC cache"):
                 self.cached_data.extend(
                     self._process_file(idx, return_multiple=self.apply_augmentations)
                 )
-            print(f"Cache complete. Total items in RAM: {len(self.cached_data)}")
+            total_items = len(self.cached_data)
+            total_pairs = total_items // (2 if self.apply_augmentations else 1)
+            aug_str = (
+                f" (with {total_items - total_pairs} augmented variants)"
+                if self.apply_augmentations
+                else ""
+            )
+            print(f"Cache complete. Total items in RAM: {total_items}{aug_str}")
 
     def __len__(self) -> int:
         if self.cache_mode:
