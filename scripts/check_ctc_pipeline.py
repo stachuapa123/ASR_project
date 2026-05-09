@@ -161,8 +161,9 @@ def main() -> int:
 
     mel_augmenter = SpecAugment(freq_mask_percent=0.2, time_mask_percent=0.125, p=0.5)
 
-    # 5. Training with temporary checkpoint
-    log("training model with AMP and CTCLoss")
+    # 5. Training with temporary checkpoint.
+    # The best checkpoint is now selected by lowest validation PER, not CTC loss.
+    log("training model with AMP and CTCLoss (best model selected by val PER)")
     tmp_ckpt = os.path.join(project_root, "trained_models", "check_pipeline_ctc_tmp.pt")
 
     try:
@@ -226,6 +227,11 @@ def main() -> int:
         log("Sample decoding comparison (1st item):")
         log(f"  Target:      {decode_to_phonemes(unpadded_targets[0])}")
         log(f"  Prediction:  {decode_to_phonemes(decoded_batch[0])}")
+
+        # Verify the saved checkpoint records the val_loss at the best-PER epoch
+        saved_val_loss = checkpoint.get("val_loss")
+        if saved_val_loss is not None:
+            log(f"Checkpoint val CTC loss at best-PER epoch: {saved_val_loss:.4f}")
 
         log("CTC PIPELINE CHECK OK")
 

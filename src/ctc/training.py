@@ -6,10 +6,11 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from .config import CTCConfig as C
+from .metrics import greedy_decode, compute_per
 
 
 class EarlyStopping:
-    """Stop training when val loss doesn't improve for `patience` epochs."""
+    """Stop training when val PER doesn't improve for `patience` epochs."""
 
     def __init__(self, patience: int = 5, min_delta: float = 0.0) -> None:
         self.patience = patience
@@ -69,13 +70,21 @@ def evaluate_epoch(
     device: torch.device,
     time_reduction_factor: int = C.TIME_REDUCTION_FACTOR,
     use_amp: bool | None = None,
-) -> float:
+) -> tuple[float, float]:
     """
-    Run one validation epoch and return mean CTC loss.
+    Run one validation epoch.
+
+    Returns:
+        mean_ctc_loss: mean CTC loss over the validation set (for diagnostics).
+        per: Phoneme Error Rate over the validation set (for model selection).
     """
     model.eval()
     total_loss = 0.0
     total_samples = 0
+
+    # Accumulate decoded predictions and ground-truth targets for PER computation.
+    all_preds: list[list[int]] = []
+    all_targets: list[list[int]] = []
 
     if use_amp is None:
         use_amp = device.type == "cuda"
@@ -109,7 +118,16 @@ def evaluate_epoch(
             total_loss += loss.item() * batch_size
             total_samples += batch_size
 
-    return total_loss / max(total_samples, 1)
+            # Greedy-decode logits and collect targets for PER.
+            decoded = greedy_decode(logits)
+            all_preds.extend(decoded)
+            all_targets.extend(
+                [t[:l].tolist() for t, l in zip(targets.cpu(), target_lengths.cpu())]
+            )
+
+    mean_ctc_loss = total_loss / max(total_samples, 1)
+    per = compute_per(all_preds, all_targets)
+    return mean_ctc_loss, per
 
 
 def train_ctc(
@@ -139,6 +157,10 @@ def train_ctc(
         - criterion (typically CTCLoss)
         - optional scheduler (e.g. OneCycleLR, CosineAnnealingLR, ...)
         - optional GradScaler (for mixed precision on CUDA)
+
+    Model selection (early stopping + best checkpoint) is driven by validation
+    PER rather than validation CTC loss. CTC loss is still logged each epoch
+    for diagnostic purposes (e.g. detecting gradient explosions).
     """
     model.to(device)
 
@@ -152,7 +174,7 @@ def train_ctc(
             enabled=use_amp,
         )
 
-    best_val_loss = float("inf")
+    best_val_per = float("inf")
     best_state: dict[str, Any] | None = None
 
     for epoch in range(1, n_epochs + 1):
@@ -216,8 +238,7 @@ def train_ctc(
             )
 
         train_loss = running_loss / max(running_count, 1)
-
-        val_loss = evaluate_epoch(
+        val_loss, val_per = evaluate_epoch(
             model=model,
             val_loader=val_loader,
             criterion=criterion,
@@ -226,9 +247,10 @@ def train_ctc(
             use_amp=use_amp,
         )
 
-        improved = val_loss < best_val_loss
+        # Model selection and early stopping are driven by PER, not CTC loss
+        improved = val_per < best_val_per
         if improved:
-            best_val_loss = val_loss
+            best_val_per = val_per
             best_state = model.state_dict()
             if save_best_to is not None:
                 save_checkpoint(
@@ -251,10 +273,11 @@ def train_ctc(
             f"\rEpoch {epoch:3d}/{n_epochs} | "
             f"Train Loss: {train_loss:.4f} | "
             f"Val Loss: {val_loss:.4f} | "
+            f"Val PER: {val_per:.4f} | "
             f"LR: {lr:.1e}{marker}" + " " * 10
         )
 
-        if early_stopping is not None and early_stopping.step(val_loss):
+        if early_stopping is not None and early_stopping.step(val_per):
             print(f"\nEarly stopping triggered after epoch {epoch}.")
             break
 
@@ -263,6 +286,6 @@ def train_ctc(
 
     if best_state is not None:
         model.load_state_dict(best_state)
-        print(f"Restored best weights with Val Loss = {best_val_loss:.4f}")
+        print(f"Restored best weights with Val PER = {best_val_per:.4f}")
 
     return model
