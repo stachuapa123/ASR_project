@@ -8,6 +8,28 @@ from torch.utils.data import DataLoader
 from .config import CTCConfig as C
 
 
+class EarlyStopping:
+    """Stop training when val loss doesn't improve for `patience` epochs."""
+
+    def __init__(self, patience: int = 5, min_delta: float = 0.0) -> None:
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.best_loss = float("inf")
+        self.should_stop = False
+
+    def step(self, val_loss: float) -> bool:
+        """Call after each epoch. Returns True if training should stop."""
+        if val_loss < self.best_loss - self.min_delta:
+            self.best_loss = val_loss
+            self.counter = 0
+        else:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.should_stop = True
+        return self.should_stop
+
+
 def save_checkpoint(
     path: str | Path,
     model: torch.nn.Module,
@@ -46,6 +68,7 @@ def evaluate_epoch(
     criterion: torch.nn.Module,
     device: torch.device,
     time_reduction_factor: int = C.TIME_REDUCTION_FACTOR,
+    use_amp: bool | None = None,
 ) -> float:
     """
     Run one validation epoch and return mean CTC loss.
@@ -53,6 +76,9 @@ def evaluate_epoch(
     model.eval()
     total_loss = 0.0
     total_samples = 0
+
+    if use_amp is None:
+        use_amp = device.type == "cuda"
 
     with torch.no_grad():
         for mels, targets, input_lengths, target_lengths in val_loader:
@@ -63,7 +89,7 @@ def evaluate_epoch(
 
             with torch.amp.autocast(
                 device_type=device.type,
-                enabled=(device.type == "cuda"),
+                enabled=use_amp,
             ):
                 logits = model(mels)  # (B, T', C+1)
 
@@ -97,8 +123,12 @@ def train_ctc(
     spec_augment: Any | None = None,
     scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
     scaler: torch.amp.GradScaler | None = None,
+    early_stopping: EarlyStopping | None = None,
     save_best_to: str | Path | None = None,
     time_reduction_factor: int = C.TIME_REDUCTION_FACTOR,
+    use_amp: bool | None = None,
+    grad_clip_norm: float | None = 2.0,
+    step_scheduler_per_batch: bool = True,
     checkpoint_config: dict[str, Any] | None = None,
 ) -> torch.nn.Module:
     """
@@ -112,11 +142,14 @@ def train_ctc(
     """
     model.to(device)
 
+    if use_amp is None:
+        use_amp = device.type == "cuda"
+
     # If caller did not pass a scaler, create a "no-op" one for CUDA, or disable on CPU.
     if scaler is None:
         scaler = torch.amp.GradScaler(
             device=device.type,
-            enabled=(device.type == "cuda"),
+            enabled=use_amp,
         )
 
     best_val_loss = float("inf")
@@ -142,7 +175,7 @@ def train_ctc(
 
             with torch.amp.autocast(
                 device_type=device.type,
-                enabled=(device.type == "cuda"),
+                enabled=use_amp,
             ):
                 logits = model(mels)  # (B, T', C+1)
 
@@ -159,13 +192,16 @@ def train_ctc(
                 )
 
             scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
+            if grad_clip_norm is not None:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), max_norm=grad_clip_norm
+                )
 
             scaler.step(optimizer)
             scaler.update()
 
-            if scheduler is not None:
+            if scheduler is not None and step_scheduler_per_batch:
                 scheduler.step()
 
             batch_size = targets.size(0)
@@ -187,6 +223,7 @@ def train_ctc(
             criterion=criterion,
             device=device,
             time_reduction_factor=time_reduction_factor,
+            use_amp=use_amp,
         )
 
         improved = val_loss < best_val_loss
@@ -216,6 +253,13 @@ def train_ctc(
             f"Val Loss: {val_loss:.4f} | "
             f"LR: {lr:.1e}{marker}" + " " * 10
         )
+
+        if early_stopping is not None and early_stopping.step(val_loss):
+            print(f"\nEarly stopping triggered after epoch {epoch}.")
+            break
+
+        if scheduler is not None and not step_scheduler_per_batch:
+            scheduler.step()
 
     if best_state is not None:
         model.load_state_dict(best_state)

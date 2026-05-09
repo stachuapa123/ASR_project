@@ -1,4 +1,5 @@
 import torch
+from collections.abc import Mapping
 
 from .config import CTCConfig as C
 
@@ -31,11 +32,16 @@ def greedy_decode(logits: torch.Tensor, blank: int = C.N_CLASSES) -> list[list[i
     return decoded_batch
 
 
-def decode_to_phonemes(indices: list[int], sep: str = " ") -> str:
+def decode_to_phonemes(
+    indices: list[int],
+    idx2label: Mapping[int, str] | None = None,
+    sep: str = " ",
+) -> str:
     """
     Convert a sequence of indices to a phoneme string.
     """
-    return sep.join(C.IDX2LABEL.get(idx, "<UNK>") for idx in indices)
+    mapping = C.IDX2LABEL if idx2label is None else idx2label
+    return sep.join(mapping.get(idx, "<UNK>") for idx in indices)
 
 
 def compute_per(preds: list[list[int]], targets: list[list[int]]) -> float:

@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
+from collections.abc import Mapping
 
 import numpy as np
 import torch
+import torchaudio.transforms as T
 from scipy.io import wavfile
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
@@ -16,20 +18,26 @@ from .augmentation import augment_waveform
 
 def textgrid_to_phoneme_ids(
     textgrid_path: str | Path,
+    label2idx: Mapping[str, int] | None = None,
     map_sp_to_sil: bool = True,
+    tier_name: str = "phones",
 ) -> list[int]:
     """
     Parse a TextGrid file and map phones to integer indices.
     """
     textgrid_path = Path(textgrid_path)
     with textgrid_path.open("r", encoding="utf-8") as f:
-        intervals = parse_phoneme_intervals(f.read(), map_sp_to_sil=map_sp_to_sil)
+        intervals = parse_phoneme_intervals(
+            f.read(), map_sp_to_sil=map_sp_to_sil, tier_name=tier_name
+        )
+
+    mapping = C.LABEL2IDX if label2idx is None else label2idx
 
     indices: list[int] = []
     for _, _, label in intervals:
-        if not label or label not in C.LABEL2IDX:
+        if not label or label not in mapping:
             continue
-        indices.append(C.LABEL2IDX[label])
+        indices.append(mapping[label])
 
     return indices
 
@@ -49,6 +57,14 @@ class CTCDataset(Dataset):
         cache_mode: bool = True,
         apply_augmentations: bool = False,
         max_files: int | None = None,
+        sample_rate: int = C.SAMPLE_RATE,
+        n_fft: int = C.N_FFT,
+        hop_length: int = C.HOP_LENGTH,
+        n_mels: int = C.N_MELS,
+        standardize: bool = True,
+        label2idx: Mapping[str, int] | None = None,
+        map_sp_to_sil: bool = True,
+        tier_name: str = "phones",
         noiseprob: float = 0.5,
         gainprob: float = 0.5,
         tempo_prob: float = 0.2,
@@ -58,8 +74,16 @@ class CTCDataset(Dataset):
     ) -> None:
         super().__init__()
 
+        self.sample_rate = sample_rate
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        self.n_mels = n_mels
+        self.standardize = standardize
         self.apply_augmentations = apply_augmentations
         self.cache_mode = cache_mode
+        self.label2idx = C.LABEL2IDX if label2idx is None else label2idx
+        self.map_sp_to_sil = map_sp_to_sil
+        self.tier_name = tier_name
 
         self.noiseprob = noiseprob
         self.gainprob = gainprob
@@ -67,6 +91,16 @@ class CTCDataset(Dataset):
         self.noise_level = noise_level
         self.gain_range = gain_range
         self.tempo_range = tempo_range
+
+        self.mel_transform = T.MelSpectrogram(
+            sample_rate=self.sample_rate,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            n_mels=self.n_mels,
+            center=True,
+            power=2.0,
+        )
+        self.db_transform = T.AmplitudeToDB(stype="power")
 
         data_root = Path(data_root)
         tg_paths = sorted(str(p) for p in data_root.rglob("*.TextGrid"))
@@ -115,7 +149,12 @@ class CTCDataset(Dataset):
     ) -> list[tuple[torch.Tensor, torch.Tensor]]:
         wav_path, tg_path = self.samples[idx]
 
-        target_ids = textgrid_to_phoneme_ids(tg_path, map_sp_to_sil=True)
+        target_ids = textgrid_to_phoneme_ids(
+            tg_path,
+            label2idx=self.label2idx,
+            map_sp_to_sil=self.map_sp_to_sil,
+            tier_name=self.tier_name,
+        )
         target_tensor = torch.tensor(target_ids, dtype=torch.long)
 
         sample_rate, audio = self._load_wav(wav_path)
@@ -123,14 +162,24 @@ class CTCDataset(Dataset):
         items: list[tuple[torch.Tensor, torch.Tensor]] = []
 
         # clean
-        mel_clean = audio_to_logmel(audio, sample_rate, standardize=True)
+        mel_clean = audio_to_logmel(
+            audio,
+            sample_rate,
+            target_sample_rate=self.sample_rate,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            n_mels=self.n_mels,
+            standardize=self.standardize,
+            mel_transform=self.mel_transform,
+            db_transform=self.db_transform,
+        )
         items.append((mel_clean, target_tensor))
 
         # augmented
         if return_multiple:
             aug_audio = augment_waveform(
                 audio,
-                sr=C.SAMPLE_RATE,
+                sr=self.sample_rate,
                 noiseprob=self.noiseprob,
                 gainprob=self.gainprob,
                 tempo_prob=self.tempo_prob,
@@ -138,7 +187,17 @@ class CTCDataset(Dataset):
                 gain_range=self.gain_range,
                 tempo_range=self.tempo_range,
             )
-            mel_aug = audio_to_logmel(aug_audio, C.SAMPLE_RATE, standardize=True)
+            mel_aug = audio_to_logmel(
+                aug_audio,
+                self.sample_rate,
+                target_sample_rate=self.sample_rate,
+                n_fft=self.n_fft,
+                hop_length=self.hop_length,
+                n_mels=self.n_mels,
+                standardize=self.standardize,
+                mel_transform=self.mel_transform,
+                db_transform=self.db_transform,
+            )
             items.append((mel_aug, target_tensor))
 
         return items
@@ -153,6 +212,7 @@ class CTCDataset(Dataset):
 
 def ctc_collate_fn(
     batch: list[tuple[torch.Tensor, torch.Tensor]],
+    pad_value: int = C.N_CLASSES,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Collate function for CTC training.
@@ -175,7 +235,7 @@ def ctc_collate_fn(
     targets_padded = pad_sequence(
         targets,
         batch_first=True,
-        padding_value=C.N_CLASSES,  # CTC blank index
+        padding_value=pad_value,
     )
 
     return mels_padded, targets_padded, input_lengths, target_lengths

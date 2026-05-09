@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import argparse
 import os
 
@@ -34,6 +33,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument(
+        "--cache-mode",
+        action="store_true",
+        help="Precompute and cache spectrograms in RAM",
+    )
+    parser.add_argument(
+        "--apply-aug",
+        action="store_true",
+        help="Precompute waveform augmentations into cache",
+    )
+    parser.add_argument("--n-mels", type=int, default=C.N_MELS)
+    parser.add_argument("--n-fft", type=int, default=C.N_FFT)
+    parser.add_argument("--hop-length", type=int, default=C.HOP_LENGTH)
 
     default_device = "cuda" if torch.cuda.is_available() else "cpu"
     parser.add_argument("--device", default=default_device)
@@ -78,9 +90,14 @@ def main() -> int:
     # 1. Dataset construction (no dataset-level augmentation here)
     dataset = CTCDataset(
         data_root=data_dir,
-        cache_mode=True,
-        apply_augmentations=False,
+        cache_mode=args.cache_mode,
+        apply_augmentations=args.apply_aug,
         max_files=args.max_files,
+        sample_rate=C.SAMPLE_RATE,
+        n_fft=args.n_fft,
+        hop_length=args.hop_length,
+        n_mels=args.n_mels,
+        standardize=True,
         noiseprob=0.5,
         gainprob=0.5,
         tempo_prob=0.2,
@@ -128,7 +145,7 @@ def main() -> int:
     )
 
     # 4. Model & training components
-    model = CTCModel()
+    model = CTCModel(n_mels=args.n_mels)
 
     criterion = torch.nn.CTCLoss(blank=C.N_CLASSES, zero_infinity=True)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
@@ -161,6 +178,8 @@ def main() -> int:
             scheduler=scheduler,
             scaler=scaler,
             save_best_to=tmp_ckpt,
+            use_amp=(device.type == "cuda"),
+            grad_clip_norm=2.0,
             checkpoint_config={
                 "source": "check_pipeline",
                 "epochs": args.epochs,

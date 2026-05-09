@@ -1,5 +1,7 @@
 def parse_phoneme_intervals(
-    text_grid: str, map_sp_to_sil: bool = True
+    text_grid: str,
+    map_sp_to_sil: bool = True,
+    tier_name: str = "phones",
 ) -> list[tuple[float, float, str]]:
     """
     Extract (start, end, label) intervals from the "phones" tier of a TextGrid.
@@ -20,11 +22,11 @@ def parse_phoneme_intervals(
     for line in text_grid.split("\n"):
         line = line.strip()
 
-        if 'name = "phones"' in line:
+        if f'name = "{tier_name}"' in line:
             in_phones = True
             continue
 
-        if in_phones and line.startswith("name =") and "phones" not in line:
+        if in_phones and line.startswith("name =") and tier_name not in line:
             break
 
         if not in_phones:
