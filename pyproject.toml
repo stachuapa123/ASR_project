@@ -6,10 +6,12 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "matplotlib>=3.10.8",
+    "optuna>=4.8.0",
     "scipy>=1.17.1",
     "sounddevice>=0.5.5",
     "torch>=2.11.0",
     "torchaudio>=2.11.0",
+    "torchmetrics>=1.9.0",
 ]
 
 [dependency-groups]
@@ -18,9 +20,20 @@ dev = [
     "ruff>=0.15.11",
 ]
 
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu126" }]
+torchvision = [{ index = "pytorch-cu126" }]
+torchaudio = [{ index = "pytorch-cu126" }]
+
 [build-system]
 requires = ["uv_build>=0.11.7,<0.12"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = ""
+module-name = "src"
