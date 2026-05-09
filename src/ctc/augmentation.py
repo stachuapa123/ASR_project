@@ -68,7 +68,7 @@ class SpecAugment:
         time_mask_percent: float = 0.125,
         p: float = 0.3,
         n_mels: int = C.N_MELS,
-        time_frames: int = C.WIN_FRAMES,
+        time_frames: int = 8,
     ) -> None:
         self.freq_mask = T.FrequencyMasking(int(freq_mask_percent * n_mels))
         self.time_mask = T.TimeMasking(int(time_mask_percent * time_frames))
