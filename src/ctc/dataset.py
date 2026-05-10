@@ -28,7 +28,7 @@ class CTCDataset(Dataset):
     def __init__(
         self,
         data_root: str | Path,
-        cache_mode: bool = True,
+        cache_mode: bool = False,
         apply_augmentations: bool = False,
         max_files: int | None = None,
         sample_rate: int = C.SAMPLE_RATE,
@@ -40,10 +40,10 @@ class CTCDataset(Dataset):
         map_sp_to_sil: bool = True,
         noise_prob: float = 0.5,
         gain_prob: float = 0.5,
-        tempo_prob: float = 0.2,
-        noise_level: tuple[float, float] = (10.0, 30.0),
-        gain_range: tuple[float, float] = (-5.0, 5.0),
-        tempo_range: tuple[float, float] = (0.95, 1.05),
+        tempo_prob: float = 0.3,
+        noise_level: tuple[float, float] = (15.0, 30.0),
+        gain_range: tuple[float, float] = (-3.0, 3.0),
+        tempo_range: tuple[float, float] = (0.9, 1.1),
     ) -> None:
         super().__init__()
 
@@ -150,7 +150,7 @@ class CTCDataset(Dataset):
                 sr=self.sample_rate,
                 noise_prob=self.noise_prob,
                 gain_prob=self.gain_prob,
-                tempo_prob=self.tempo_prob,
+                speed_perturbation_prob=self.tempo_prob,
                 noise_level=self.noise_level,
                 gain_range=self.gain_range,
                 tempo_range=self.tempo_range,

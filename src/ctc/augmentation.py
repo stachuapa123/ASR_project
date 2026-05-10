@@ -8,9 +8,9 @@ from .config import CTCConfig as C
 def augment_waveform(
     audio: torch.Tensor,
     sr: int = C.SAMPLE_RATE,
-    noise_prob: float = 0.3,
-    gain_prob: float = 0.3,
-    tempo_prob: float = 0.0,  # off by default - this can misalign labels
+    noise_prob: float = 0.5,
+    gain_prob: float = 0.5,
+    speed_perturbation_prob: float = 0.3,
     noise_level: tuple[float, float] = (15.0, 30.0),
     gain_range: tuple[float, float] = (-3.0, 3.0),
     tempo_range: tuple[float, float] = (0.9, 1.1),
@@ -33,11 +33,11 @@ def augment_waveform(
     if torch.rand(1).item() < gain_prob:
         audio = _apply_gain(audio, gain_range)
 
-    # Tempo
-    if torch.rand(1).item() < tempo_prob:
-        audio = _apply_tempo(audio, sr, tempo_range)
+    # Speed perturbation
+    if torch.rand(1).item() < speed_perturbation_prob:
+        audio = _apply_speed_perturbation(audio, sr, tempo_range)
 
-    return audio.clamp(-1.0, 1.0)
+    return audio
 
 
 def _apply_noise(audio: torch.Tensor, noise_level: tuple[float, float]) -> torch.Tensor:
@@ -55,10 +55,13 @@ def _apply_gain(audio: torch.Tensor, gain_range: tuple[float, float]) -> torch.T
     return audio * (10.0 ** (gain_db / 20.0))
 
 
-def _apply_tempo(
-    audio: torch.Tensor, sr: int, tempo_range: tuple[float, float]
+def _apply_speed_perturbation(
+    audio: torch.Tensor, sr: int, perturbation_range: tuple[float, float]
 ) -> torch.Tensor:
-    rate = tempo_range[0] + (tempo_range[1] - tempo_range[0]) * torch.rand(1).item()
+    rate = (
+        perturbation_range[0]
+        + (perturbation_range[1] - perturbation_range[0]) * torch.rand(1).item()
+    )
     return torchaudio.functional.speed(audio.unsqueeze(0), sr, rate)[0]
 
 
@@ -70,25 +73,18 @@ class SpecAugment:
 
     def __init__(
         self,
-        freq_mask_percent: float = 0.1,
-        time_mask_percent: float = 0.125,
-        p: float = 0.3,
         n_mels: int = C.N_MELS,
-        time_frames: int = 8,
     ) -> None:
-        self.freq_mask = T.FrequencyMasking(int(freq_mask_percent * n_mels))
-        self.time_mask = T.TimeMasking(int(time_mask_percent * time_frames))
-        self.p = p
+        self.freq_mask = T.FrequencyMasking(freq_mask_param=int(0.2 * n_mels))
+        self.time_mask = T.TimeMasking(time_mask_param=25, p=0.2)
 
     def _augment_single(self, mel: torch.Tensor) -> torch.Tensor:
         """
         Apply augmentation to a single (F, T) tensor.
         """
 
-        if torch.rand(1, device=mel.device).item() < self.p:
-            mel = self.freq_mask(mel)
-        if torch.rand(1, device=mel.device).item() < self.p:
-            mel = self.time_mask(mel)
+        mel = self.freq_mask(mel)
+        mel = self.time_mask(mel)
         return mel
 
     def __call__(self, mels: torch.Tensor) -> torch.Tensor:
