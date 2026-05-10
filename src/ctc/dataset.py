@@ -25,6 +25,7 @@ def textgrid_to_phoneme_ids(
     """
     Parse a TextGrid file and map phones to integer indices.
     """
+
     textgrid_path = Path(textgrid_path)
     with textgrid_path.open("r", encoding="utf-8") as f:
         intervals = parse_phoneme_intervals(
@@ -47,7 +48,7 @@ class CTCDataset(Dataset):
     Dataset for CTC training.
 
     Each item:
-        mel: (F, T) log-mel spectrogram
+        mel: (F, T) log-mel spectrogram,
         target: (U,) tensor of phoneme indices.
     """
 
@@ -62,11 +63,11 @@ class CTCDataset(Dataset):
         hop_length: int = C.HOP_LENGTH,
         n_mels: int = C.N_MELS,
         standardize: bool = True,
-        label2idx: Mapping[str, int] | None = None,
+        label2idx: Mapping[str, int] = C.LABEL2IDX,
         map_sp_to_sil: bool = True,
         tier_name: str = "phones",
-        noiseprob: float = 0.5,
-        gainprob: float = 0.5,
+        noise_prob: float = 0.5,
+        gain_prob: float = 0.5,
         tempo_prob: float = 0.2,
         noise_level: tuple[float, float] = (10.0, 30.0),
         gain_range: tuple[float, float] = (-5.0, 5.0),
@@ -81,12 +82,11 @@ class CTCDataset(Dataset):
         self.standardize = standardize
         self.apply_augmentations = apply_augmentations
         self.cache_mode = cache_mode
-        self.label2idx = C.LABEL2IDX if label2idx is None else label2idx
+        self.label2idx = label2idx
         self.map_sp_to_sil = map_sp_to_sil
         self.tier_name = tier_name
-
-        self.noiseprob = noiseprob
-        self.gainprob = gainprob
+        self.noise_prob = noise_prob
+        self.gain_prob = gain_prob
         self.tempo_prob = tempo_prob
         self.noise_level = noise_level
         self.gain_range = gain_range
@@ -161,7 +161,7 @@ class CTCDataset(Dataset):
 
         items: list[tuple[torch.Tensor, torch.Tensor]] = []
 
-        # clean
+        # Clean
         mel_clean = audio_to_logmel(
             audio,
             sample_rate,
@@ -175,20 +175,20 @@ class CTCDataset(Dataset):
         )
         items.append((mel_clean, target_tensor))
 
-        # augmented
+        # Augmented
         if return_multiple:
-            aug_audio = augment_waveform(
+            audio_aug = augment_waveform(
                 audio,
                 sr=self.sample_rate,
-                noise_prob=self.noiseprob,
-                gain_prob=self.gainprob,
+                noise_prob=self.noise_prob,
+                gain_prob=self.gain_prob,
                 tempo_prob=self.tempo_prob,
                 noise_level=self.noise_level,
                 gain_range=self.gain_range,
                 tempo_range=self.tempo_range,
             )
             mel_aug = audio_to_logmel(
-                aug_audio,
+                audio_aug,
                 self.sample_rate,
                 target_sample_rate=self.sample_rate,
                 n_fft=self.n_fft,

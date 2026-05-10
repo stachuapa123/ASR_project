@@ -31,6 +31,7 @@ def audio_to_logmel(
     Returns:
         mel: (n_mels, T') tensor on CPU.
     """
+
     if audio.ndim == 2:
         audio = audio.mean(axis=1)
 
@@ -74,8 +75,9 @@ def wav_path_to_logmel(
     db_transform: T.AmplitudeToDB | None = None,
 ) -> torch.Tensor:
     """
-    Convenience: read a wav file and convert it to log-mel.
+    Read a wav file and convert it to log-mel.
     """
+
     path = str(path)
     sample_rate, audio = wavfile.read(path)
 

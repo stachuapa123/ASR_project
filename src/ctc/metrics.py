@@ -15,6 +15,7 @@ def greedy_decode(logits: torch.Tensor, blank: int = C.N_CLASSES) -> list[list[i
     Returns:
         List of length B with decoded index sequences.
     """
+
     pred_indices = torch.argmax(logits, dim=-1)  # (B, T)
 
     decoded_batch: list[list[int]] = []
@@ -40,6 +41,7 @@ def decode_to_phonemes(
     """
     Convert a sequence of indices to a phoneme string.
     """
+
     mapping = C.IDX2LABEL if idx2label is None else idx2label
     return sep.join(mapping.get(idx, "<UNK>") for idx in indices)
 
@@ -48,6 +50,7 @@ def compute_per(preds: list[list[int]], targets: list[list[int]]) -> float:
     """
     Phoneme Error Rate (PER) = total edit distance / total target phonemes.
     """
+
     total_distance = 0
     total_length = 0
 
@@ -65,6 +68,7 @@ def _levenshtein_distance(seq1: list[int], seq2: list[int]) -> int:
     """
     Standard dynamic-programming edit distance for integer sequences.
     """
+
     m, n = len(seq1), len(seq2)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
 

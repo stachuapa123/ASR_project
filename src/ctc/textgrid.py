@@ -13,6 +13,7 @@ def parse_phoneme_intervals(
     Returns:
         List of (xmin, xmax, label) tuples for each phone interval.
     """
+
     intervals: list[tuple[float, float, str]] = []
 
     in_phones = False

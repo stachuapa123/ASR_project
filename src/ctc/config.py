@@ -1,5 +1,4 @@
 import torch
-import torchaudio.transforms as T
 
 
 class CTCConfig:
