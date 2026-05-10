@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import torchaudio
 import torchaudio.transforms as T
@@ -7,58 +6,65 @@ from .config import CTCConfig as C
 
 
 def augment_waveform(
-    audio: np.ndarray | torch.Tensor,
+    audio: torch.Tensor,
     sr: int = C.SAMPLE_RATE,
-    noiseprob: float = 0.3,
-    gainprob: float = 0.3,
-    tempo_prob: float = 0.0,
+    noise_prob: float = 0.3,
+    gain_prob: float = 0.3,
+    tempo_prob: float = 0.0,  # off by default - this can misalign labels
     noise_level: tuple[float, float] = (15.0, 30.0),
     gain_range: tuple[float, float] = (-3.0, 3.0),
     tempo_range: tuple[float, float] = (0.9, 1.1),
-) -> np.ndarray:
+) -> torch.Tensor:
     """
-    Waveform-level augmentation: noise, gain, optional tempo.
-
-    Operates on mono audio and returns numpy float32 in [-1, 1].
+    Waveform-level augmentation: noise, gain, tempo.
+    Operates on mono audio.
+    Returns torch.Tensor in [-1, 1].
     """
 
-    if isinstance(audio, np.ndarray):
-        audio = torch.from_numpy(audio).float()
-    else:
-        audio = audio.float()
-
+    audio = audio.float()
     if audio.ndim > 1:
         audio = audio.mean(dim=-1)
 
     # Noise
-    if torch.rand(1).item() < noiseprob:
-        snr_db = (
-            noise_level[0] + (noise_level[1] - noise_level[0]) * torch.rand(1).item()
-        )
-        signal_power = audio.pow(2).mean()
-        if signal_power > 1e-10:
-            noise_power = signal_power / (10.0 ** (snr_db / 10.0))
-            noise = torch.randn_like(audio) * noise_power.sqrt()
-            audio = audio + noise
+    if torch.rand(1).item() < noise_prob:
+        audio = _apply_noise(audio, noise_level)
 
     # Gain
-    if torch.rand(1).item() < gainprob:
-        gain_db = gain_range[0] + (gain_range[1] - gain_range[0]) * torch.rand(1).item()
-        audio = audio * (10.0 ** (gain_db / 20.0))
+    if torch.rand(1).item() < gain_prob:
+        audio = _apply_gain(audio, gain_range)
 
-    # Tempo (off by default – this can misalign labels)
+    # Tempo
     if torch.rand(1).item() < tempo_prob:
-        rate = tempo_range[0] + (tempo_range[1] - tempo_range[0]) * torch.rand(1).item()
-        audio = torchaudio.functional.speed(audio.unsqueeze(0), sr, rate)[0]
+        audio = _apply_tempo(audio, sr, tempo_range)
 
-    audio = audio.clamp(-1.0, 1.0)
-    return audio.numpy()
+    return audio.clamp(-1.0, 1.0)
+
+
+def _apply_noise(audio: torch.Tensor, noise_level: tuple[float, float]) -> torch.Tensor:
+    snr_db = noise_level[0] + (noise_level[1] - noise_level[0]) * torch.rand(1).item()
+    signal_power = audio.pow(2).mean()
+    if signal_power > 1e-10:
+        noise_power = signal_power / (10.0 ** (snr_db / 10.0))
+        noise = torch.randn_like(audio) * noise_power.sqrt()
+        return audio + noise
+    return audio
+
+
+def _apply_gain(audio: torch.Tensor, gain_range: tuple[float, float]) -> torch.Tensor:
+    gain_db = gain_range[0] + (gain_range[1] - gain_range[0]) * torch.rand(1).item()
+    return audio * (10.0 ** (gain_db / 20.0))
+
+
+def _apply_tempo(
+    audio: torch.Tensor, sr: int, tempo_range: tuple[float, float]
+) -> torch.Tensor:
+    rate = tempo_range[0] + (tempo_range[1] - tempo_range[0]) * torch.rand(1).item()
+    return torchaudio.functional.speed(audio.unsqueeze(0), sr, rate)[0]
 
 
 class SpecAugment:
     """
-    Basic SpecAugment for mel spectrograms.
-
+    Basic SpecAugment for mel spectrograms. See: https://arxiv.org/pdf/1904.08779.
     Supports both (F, T) and (B, F, T) inputs.
     """
 
@@ -78,6 +84,7 @@ class SpecAugment:
         """
         Apply augmentation to a single (F, T) tensor.
         """
+
         if torch.rand(1, device=mel.device).item() < self.p:
             mel = self.freq_mask(mel)
         if torch.rand(1, device=mel.device).item() < self.p:
@@ -86,12 +93,11 @@ class SpecAugment:
 
     def __call__(self, mels: torch.Tensor) -> torch.Tensor:
         """
-        Args:
-            mels: (F, T) or (B, F, T)
-
-        Returns:
-            Augmented tensor with the same shape.
+        Applies SpecAugment to the input mel spectrogram(s).
+        Supports both (F, T) and (B, F, T) inputs.
+        Returns augmented tensor with the same shape.
         """
+
         if mels.ndim == 2:
             return self._augment_single(mels)
 

@@ -180,8 +180,8 @@ class CTCDataset(Dataset):
             aug_audio = augment_waveform(
                 audio,
                 sr=self.sample_rate,
-                noiseprob=self.noiseprob,
-                gainprob=self.gainprob,
+                noise_prob=self.noiseprob,
+                gain_prob=self.gainprob,
                 tempo_prob=self.tempo_prob,
                 noise_level=self.noise_level,
                 gain_range=self.gain_range,
