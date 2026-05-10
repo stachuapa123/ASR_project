@@ -11,36 +11,9 @@ from torch.utils.data import Dataset
 import tqdm
 
 from .config import CTCConfig as C
-from .textgrid import parse_phoneme_intervals
 from .features import audio_to_logmel
 from .augmentation import augment_waveform
-
-
-def textgrid_to_phoneme_ids(
-    textgrid_path: str | Path,
-    label2idx: Mapping[str, int] | None = None,
-    map_sp_to_sil: bool = True,
-    tier_name: str = "phones",
-) -> list[int]:
-    """
-    Parse a TextGrid file and map phones to integer indices.
-    """
-
-    textgrid_path = Path(textgrid_path)
-    with textgrid_path.open("r", encoding="utf-8") as f:
-        intervals = parse_phoneme_intervals(
-            f.read(), map_sp_to_sil=map_sp_to_sil, tier_name=tier_name
-        )
-
-    mapping = C.LABEL2IDX if label2idx is None else label2idx
-
-    indices: list[int] = []
-    for _, _, label in intervals:
-        if not label or label not in mapping:
-            continue
-        indices.append(mapping[label])
-
-    return indices
+from .textgrid import textgrid_to_phoneme_ids
 
 
 class CTCDataset(Dataset):
@@ -55,7 +28,7 @@ class CTCDataset(Dataset):
     def __init__(
         self,
         data_root: str | Path,
-        cache_mode: bool = True,
+        cache_mode: bool = False,
         apply_augmentations: bool = False,
         max_files: int | None = None,
         sample_rate: int = C.SAMPLE_RATE,
@@ -65,13 +38,12 @@ class CTCDataset(Dataset):
         standardize: bool = True,
         label2idx: Mapping[str, int] = C.LABEL2IDX,
         map_sp_to_sil: bool = True,
-        tier_name: str = "phones",
         noise_prob: float = 0.5,
         gain_prob: float = 0.5,
-        tempo_prob: float = 0.2,
-        noise_level: tuple[float, float] = (10.0, 30.0),
-        gain_range: tuple[float, float] = (-5.0, 5.0),
-        tempo_range: tuple[float, float] = (0.95, 1.05),
+        tempo_prob: float = 0.3,
+        noise_level: tuple[float, float] = (15.0, 30.0),
+        gain_range: tuple[float, float] = (-3.0, 3.0),
+        tempo_range: tuple[float, float] = (0.9, 1.1),
     ) -> None:
         super().__init__()
 
@@ -84,7 +56,6 @@ class CTCDataset(Dataset):
         self.cache_mode = cache_mode
         self.label2idx = label2idx
         self.map_sp_to_sil = map_sp_to_sil
-        self.tier_name = tier_name
         self.noise_prob = noise_prob
         self.gain_prob = gain_prob
         self.tempo_prob = tempo_prob
@@ -150,10 +121,7 @@ class CTCDataset(Dataset):
         wav_path, tg_path = self.samples[idx]
 
         target_ids = textgrid_to_phoneme_ids(
-            tg_path,
-            label2idx=self.label2idx,
-            map_sp_to_sil=self.map_sp_to_sil,
-            tier_name=self.tier_name,
+            tg_path, label2idx=self.label2idx, map_sp_to_sil=self.map_sp_to_sil
         )
         target_tensor = torch.tensor(target_ids, dtype=torch.long)
 
@@ -182,7 +150,7 @@ class CTCDataset(Dataset):
                 sr=self.sample_rate,
                 noise_prob=self.noise_prob,
                 gain_prob=self.gain_prob,
-                tempo_prob=self.tempo_prob,
+                speed_perturbation_prob=self.tempo_prob,
                 noise_level=self.noise_level,
                 gain_range=self.gain_range,
                 tempo_range=self.tempo_range,
@@ -212,7 +180,7 @@ class CTCDataset(Dataset):
 
 def ctc_collate_fn(
     batch: list[tuple[torch.Tensor, torch.Tensor]],
-    pad_value: int = C.N_CLASSES,
+    pad_value: int = C.BLANK_IDX,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Collate function for CTC training.
@@ -223,6 +191,7 @@ def ctc_collate_fn(
         input_lengths: (B,) input lengths before conv pooling
         target_lengths: (B,) target sequence lengths
     """
+
     mels, targets = zip(*batch)
 
     input_lengths = torch.tensor([mel.shape[1] for mel in mels], dtype=torch.long)

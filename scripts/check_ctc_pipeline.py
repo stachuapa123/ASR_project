@@ -147,7 +147,7 @@ def main() -> int:
     # 4. Model & training components
     model = CTCModel(n_mels=args.n_mels)
 
-    criterion = torch.nn.CTCLoss(blank=C.N_CLASSES, zero_infinity=True)
+    criterion = torch.nn.CTCLoss(blank=C.BLANK_IDX, zero_infinity=True)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer,
@@ -159,7 +159,7 @@ def main() -> int:
 
     scaler = torch.amp.GradScaler(device=device.type, enabled=(device.type == "cuda"))
 
-    mel_augmenter = SpecAugment(freq_mask_percent=0.2, time_mask_percent=0.125, p=0.5)
+    mel_augmenter = SpecAugment()
 
     # 5. Training with temporary checkpoint.
     # The best checkpoint is now selected by lowest validation PER, not CTC loss.
@@ -172,7 +172,7 @@ def main() -> int:
             train_loader=train_loader,
             val_loader=val_loader,
             optimizer=optimizer,
-            criterion=criterion,
+            objective=criterion,
             device=device,
             n_epochs=args.epochs,
             spec_augment=mel_augmenter,

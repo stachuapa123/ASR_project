@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from .config import CTCConfig as C
 
 
-def greedy_decode(logits: torch.Tensor, blank: int = C.N_CLASSES) -> list[list[int]]:
+def greedy_decode(logits: torch.Tensor, blank: int = C.BLANK_IDX) -> list[list[int]]:
     """
     Greedy CTC decoding: argmax per time step, collapse repeats, drop blanks.
 
