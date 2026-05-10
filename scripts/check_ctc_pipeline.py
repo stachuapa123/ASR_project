@@ -147,7 +147,7 @@ def main() -> int:
     # 4. Model & training components
     model = CTCModel(n_mels=args.n_mels)
 
-    criterion = torch.nn.CTCLoss(blank=C.N_CLASSES, zero_infinity=True)
+    criterion = torch.nn.CTCLoss(blank=C.BLANK_IDX, zero_infinity=True)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer,

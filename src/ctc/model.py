@@ -18,13 +18,13 @@ class CTCModel(nn.Module):
     def __init__(
         self,
         n_mels: int = C.N_MELS,
-        n_classes: int = C.N_CLASSES + 1,  # +1 for CTC blank
+        n_classes: int = C.N_CLASSES,
         conv_channels: tuple[int, int] = (32, 64),
         hidden_size: int = 128,
         num_layers: int = 2,
         dropout_rate: float = 0.2,
         bidirectional: bool = True,
-        frequency_reduction_factor: int = 4,
+        time_reduction_factor: int = C.TIME_REDUCTION_FACTOR,
     ) -> None:
         super().__init__()
 
@@ -48,7 +48,7 @@ class CTCModel(nn.Module):
             nn.Dropout(dropout_rate),
         )
 
-        self.freq_out = n_mels // frequency_reduction_factor
+        self.freq_out = n_mels // time_reduction_factor
         rnn_directions = 2 if bidirectional else 1
 
         self.rnn = nn.LSTM(
