@@ -6,13 +6,13 @@ class CTCConfig:
     Central configuration for CTC-based Polish ASR
     """
 
-    # ---- signal / spectrogram ----
+    # Spectrogram parameters
     SAMPLE_RATE = 16000
     N_FFT = 1024
     HOP_LENGTH = 160
     N_MELS = 128
 
-    # ---- phoneme labels ----
+    # Phoneme labels
     PHONEMES = [
         "S",
         "Z",
@@ -43,7 +43,6 @@ class CTCConfig:
         "s",
         "sj",
         "sil",
-        "sp",
         "t",
         "tS",
         "tsj",
@@ -53,12 +52,11 @@ class CTCConfig:
         "z",
         "zj",
     ]
-    NON_PHONEME = "oov"
 
-    LABELS = PHONEMES + [NON_PHONEME]
-    LABEL2IDX = {label: idx for idx, label in enumerate(LABELS)}
+    BLANK_IDX = 0  # CTC blank token index
+    LABEL2IDX = {label: idx + 1 for idx, label in enumerate(PHONEMES)}
     IDX2LABEL = {idx: label for label, idx in LABEL2IDX.items()}
-    N_CLASSES = len(LABELS)
+    N_CLASSES = len(PHONEMES) + 1  # Includes blank
 
     # Time reduction factor of the acoustic model (pooling on time axis).
     # With 2x MaxPool2d((2, 2)) time is reduced by ~4.
@@ -66,11 +64,8 @@ class CTCConfig:
 
     @staticmethod
     def get_device() -> torch.device:
-        """
-        Select a reasonable default device.
-        """
         if torch.cuda.is_available():
             return torch.device("cuda")
-        if torch.backends.mps.is_available():
+        if torch.mps.is_available():
             return torch.device("mps")
         return torch.device("cpu")

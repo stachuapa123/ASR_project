@@ -135,7 +135,7 @@ def train_ctc(
     train_loader: DataLoader,
     val_loader: DataLoader,
     optimizer: torch.optim.Optimizer,
-    criterion: torch.nn.Module,
+    objective: torch.nn.Module,
     device: torch.device,
     n_epochs: int,
     spec_augment: Any | None = None,
@@ -206,7 +206,7 @@ def train_ctc(
 
                 adj_input_lengths = input_lengths // time_reduction_factor
 
-                loss = criterion(
+                loss = objective(
                     log_probs,
                     targets,
                     adj_input_lengths,
@@ -241,7 +241,7 @@ def train_ctc(
         val_loss, val_per = evaluate_epoch(
             model=model,
             val_loader=val_loader,
-            criterion=criterion,
+            criterion=objective,
             device=device,
             time_reduction_factor=time_reduction_factor,
             use_amp=use_amp,
