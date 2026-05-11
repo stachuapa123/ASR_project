@@ -66,11 +66,7 @@ def _apply_speed_perturbation(
 
 
 class SpecAugment:
-    """
-    Basic SpecAugment for mel spectrograms. See: https://arxiv.org/pdf/1904.08779.
-    Supports both (F, T) and (B, F, T) inputs.
-    """
-
+  
     def __init__(
         self,
         n_mels: int = C.N_MELS,
@@ -79,20 +75,14 @@ class SpecAugment:
         self.time_mask = T.TimeMasking(time_mask_param=25, p=0.2)
 
     def _augment_single(self, mel: torch.Tensor) -> torch.Tensor:
-        """
-        Apply augmentation to a single (F, T) tensor.
-        """
+        
 
         mel = self.freq_mask(mel)
         mel = self.time_mask(mel)
         return mel
 
     def __call__(self, mels: torch.Tensor) -> torch.Tensor:
-        """
-        Applies SpecAugment to the input mel spectrogram(s).
-        Supports both (F, T) and (B, F, T) inputs.
-        Returns augmented tensor with the same shape.
-        """
+       
 
         if mels.ndim == 2:
             return self._augment_single(mels)
