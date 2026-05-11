@@ -10,7 +10,7 @@ from .metrics import greedy_decode, compute_per
 
 
 class EarlyStopping:
-    """Stop training when val PER doesn't improve for `patience` epochs."""
+    """Stop training when `val_loss` doesn't improve for `patience` epochs."""
 
     def __init__(self, patience: int = 5, min_delta: float = 0.0) -> None:
         self.patience = patience
@@ -21,6 +21,7 @@ class EarlyStopping:
 
     def step(self, val_loss: float) -> bool:
         """Call after each epoch. Returns True if training should stop."""
+
         if val_loss < self.best_loss - self.min_delta:
             self.best_loss = val_loss
             self.counter = 0
@@ -42,9 +43,8 @@ def save_checkpoint(
 ) -> None:
     """
     Save a training checkpoint.
-
-    The caller decides what config / metadata to attach.
     """
+
     payload: dict[str, Any] = {"model_state_dict": model.state_dict()}
 
     if optimizer is not None:
@@ -75,8 +75,8 @@ def evaluate_epoch(
     Run one validation epoch.
 
     Returns:
-        mean_ctc_loss: mean CTC loss over the validation set (for diagnostics).
-        per: Phoneme Error Rate over the validation set (for model selection).
+        mean_ctc_loss: mean CTC loss
+        per: Phone Error Rate
     """
     model.eval()
     total_loss = 0.0
@@ -118,7 +118,7 @@ def evaluate_epoch(
             total_loss += loss.item() * batch_size
             total_samples += batch_size
 
-            # Greedy-decode logits and collect targets for PER.
+            # Greedy-decode logits and collect targets for PER
             decoded = greedy_decode(logits)
             all_preds.extend(decoded)
             all_targets.extend(
@@ -150,24 +150,16 @@ def train_ctc(
     checkpoint_config: dict[str, Any] | None = None,
 ) -> torch.nn.Module:
     """
-    Generic CTC training loop.
+    CTC training loop.
 
-    The caller provides:
-        - optimizer (e.g. AdamW, SGD, ...)
-        - criterion (typically CTCLoss)
-        - optional scheduler (e.g. OneCycleLR, CosineAnnealingLR, ...)
-        - optional GradScaler (for mixed precision on CUDA)
-
-    Model selection (early stopping + best checkpoint) is driven by validation
-    PER rather than validation CTC loss. CTC loss is still logged each epoch
-    for diagnostic purposes (e.g. detecting gradient explosions).
+    Model selection (early stopping + best checkpoint) is driven by validation PER.
     """
     model.to(device)
 
     if use_amp is None:
         use_amp = device.type == "cuda"
 
-    # If caller did not pass a scaler, create a "no-op" one for CUDA, or disable on CPU.
+    # If caller did not pass a scaler, create  one for CUDA, or disable on CPU
     if scaler is None:
         scaler = torch.amp.GradScaler(
             device=device.type,
@@ -247,7 +239,7 @@ def train_ctc(
             use_amp=use_amp,
         )
 
-        # Model selection and early stopping are driven by PER, not CTC loss
+        # Model selection and early stopping are driven by PER
         improved = val_per < best_val_per
         if improved:
             best_val_per = val_per

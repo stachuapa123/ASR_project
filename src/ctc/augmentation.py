@@ -13,12 +13,10 @@ def augment_waveform(
     speed_perturbation_prob: float = 0.3,
     noise_level: tuple[float, float] = (15.0, 30.0),
     gain_range: tuple[float, float] = (-3.0, 3.0),
-    tempo_range: tuple[float, float] = (0.9, 1.1),
+    speed_perturbation_range: tuple[float, float] = (0.9, 1.1),
 ) -> torch.Tensor:
     """
-    Waveform-level augmentation: noise, gain, tempo.
-    Operates on mono audio.
-    Returns torch.Tensor in [-1, 1].
+    Waveform-level augmentation: noise, gain, speed perturbation.
     """
 
     audio = audio.float()
@@ -35,7 +33,7 @@ def augment_waveform(
 
     # Speed perturbation
     if torch.rand(1).item() < speed_perturbation_prob:
-        audio = _apply_speed_perturbation(audio, sr, tempo_range)
+        audio = _apply_speed_perturbation(audio, sr, speed_perturbation_range)
 
     return audio
 
@@ -66,7 +64,6 @@ def _apply_speed_perturbation(
 
 
 class SpecAugment:
-  
     def __init__(
         self,
         n_mels: int = C.N_MELS,
@@ -75,15 +72,15 @@ class SpecAugment:
         self.time_mask = T.TimeMasking(time_mask_param=25, p=0.2)
 
     def _augment_single(self, mel: torch.Tensor) -> torch.Tensor:
-        
+        """
+        Apply augmentation to a single (F, T) tensor.
+        """
 
         mel = self.freq_mask(mel)
         mel = self.time_mask(mel)
         return mel
 
     def __call__(self, mels: torch.Tensor) -> torch.Tensor:
-       
-
         if mels.ndim == 2:
             return self._augment_single(mels)
 

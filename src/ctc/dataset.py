@@ -13,7 +13,7 @@ import tqdm
 from .config import CTCConfig as C
 from .features import audio_to_logmel
 from .augmentation import augment_waveform
-from .textgrid import textgrid_to_phoneme_ids
+from .textgrid import textgrid_to_phone_ids
 
 
 class CTCDataset(Dataset):
@@ -22,7 +22,7 @@ class CTCDataset(Dataset):
 
     Each item:
         mel: (F, T) log-mel spectrogram,
-        target: (U,) tensor of phoneme indices.
+        target: (U,) tensor of phone indices.
     """
 
     def __init__(
@@ -40,10 +40,10 @@ class CTCDataset(Dataset):
         map_sp_to_sil: bool = True,
         noise_prob: float = 0.5,
         gain_prob: float = 0.5,
-        tempo_prob: float = 0.3,
+        speed_perturbation_prob: float = 0.3,
         noise_level: tuple[float, float] = (15.0, 30.0),
         gain_range: tuple[float, float] = (-3.0, 3.0),
-        tempo_range: tuple[float, float] = (0.9, 1.1),
+        speed_perturbation_range: tuple[float, float] = (0.9, 1.1),
     ) -> None:
         super().__init__()
 
@@ -58,10 +58,10 @@ class CTCDataset(Dataset):
         self.map_sp_to_sil = map_sp_to_sil
         self.noise_prob = noise_prob
         self.gain_prob = gain_prob
-        self.tempo_prob = tempo_prob
+        self.speed_perturbation_prob = speed_perturbation_prob
         self.noise_level = noise_level
         self.gain_range = gain_range
-        self.tempo_range = tempo_range
+        self.speed_perturbation_range = speed_perturbation_range
 
         self.mel_transform = T.MelSpectrogram(
             sample_rate=self.sample_rate,
@@ -73,12 +73,13 @@ class CTCDataset(Dataset):
         )
         self.db_transform = T.AmplitudeToDB(stype="power")
 
+        # Discover all TextGrid files and pair each with its .wav
         data_root = Path(data_root)
         tg_paths = sorted(str(p) for p in data_root.rglob("*.TextGrid"))
         if max_files is not None:
             tg_paths = tg_paths[:max_files]
 
-        self.samples: list[tuple[str, str]] = []
+        self.samples: list[tuple[str, str]] = []    # List of (wav_path, textgrid_path) pairs
         for tg_path in tg_paths:
             wav_path = tg_path[: -len(".TextGrid")] + ".wav"
             if os.path.exists(wav_path):
@@ -86,6 +87,7 @@ class CTCDataset(Dataset):
 
         self.cached_data: list[tuple[torch.Tensor, torch.Tensor]] = []
         if self.cache_mode:
+            # Pre-process every file into RAM once at startup
             print(f"Pre-computing and caching {len(self.samples)} files into RAM...")
             for idx in tqdm.tqdm(range(len(self.samples)), desc="CTC cache"):
                 self.cached_data.extend(
@@ -120,10 +122,11 @@ class CTCDataset(Dataset):
     ) -> list[tuple[torch.Tensor, torch.Tensor]]:
         wav_path, tg_path = self.samples[idx]
 
-        target_ids = textgrid_to_phoneme_ids(
+        # List of phone indices, length U
+        target_ids = textgrid_to_phone_ids(
             tg_path, label2idx=self.label2idx, map_sp_to_sil=self.map_sp_to_sil
         )
-        target_tensor = torch.tensor(target_ids, dtype=torch.long)
+        target_tensor = torch.tensor(target_ids, dtype=torch.long)  # (U,)
 
         sample_rate, audio = self._load_wav(wav_path)
 
@@ -150,10 +153,10 @@ class CTCDataset(Dataset):
                 sr=self.sample_rate,
                 noise_prob=self.noise_prob,
                 gain_prob=self.gain_prob,
-                speed_perturbation_prob=self.tempo_prob,
+                speed_perturbation_prob=self.speed_perturbation_prob,
                 noise_level=self.noise_level,
                 gain_range=self.gain_range,
-                tempo_range=self.tempo_range,
+                speed_perturbation_range=self.speed_perturbation_range,
             )
             mel_aug = audio_to_logmel(
                 audio_aug,
@@ -174,7 +177,7 @@ class CTCDataset(Dataset):
         if self.cache_mode:
             return self.cached_data[idx]
 
-        items = self._process_file(idx, return_multiple=False)
+        items = self._process_file(idx, return_multiple=False)  # TODO: support on-the-fly augmentation when not caching
         return items[0]
 
 

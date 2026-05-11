@@ -12,51 +12,51 @@ class CTCConfig:
     HOP_LENGTH = 160
     N_MELS = 128
 
-    # Phoneme labels
-    PHONEMES = [
-        "S",
-        "Z",
+    # Phone labels
+    PHONES = [
+        "S",    # sz/rz like in przestrzeń
+        "Z",    # ż/rz like in rzeka
         "a",
         "b",
         "c",
         "d",
-        "dZ",
+        "dZ",   # dż
         "dz",
-        "dzj",
+        "dzj",  # dź/dzi
         "e",
-        "eo5",
+        "eo5",  # ę
         "f",
         "g",
-        "h",
+        "h",    # h/ch
         "i",
-        "i2",
+        "i2",   # y
         "j",
         "k",
         "l",
         "m",
         "n",
-        "n~",
+        "n~",   # ń/ni
         "o",
-        "oc5",
+        "oc5",  # ą
         "p",
         "r",
         "s",
-        "sj",
-        "sil",
+        "sj",   # ś/si
+        "sil",  # silence
         "t",
-        "tS",
-        "tsj",
-        "u",
-        "v",
-        "w",
+        "tS",   # cz
+        "tsj",  # ć/ci
+        "u",    # u/ó
+        "v",    # w
+        "w",    # ł
         "z",
-        "zj",
+        "zj",   # ź/zi
     ]
 
     BLANK_IDX = 0  # CTC blank token index
-    LABEL2IDX = {label: idx + 1 for idx, label in enumerate(PHONEMES)}
+    LABEL2IDX = {label: idx + 1 for idx, label in enumerate(PHONES)}
     IDX2LABEL = {idx: label for label, idx in LABEL2IDX.items()}
-    N_CLASSES = len(PHONEMES) + 1  # Includes blank
+    N_CLASSES = len(PHONES) + 1  # Includes blank
 
     # Time reduction factor of the acoustic model (pooling on time axis).
     # With 2x MaxPool2d((2, 2)) time is reduced by ~4.

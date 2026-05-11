@@ -63,13 +63,6 @@ class CTCModel(nn.Module):
         self.fc = nn.Linear(hidden_size * rnn_directions, n_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: (B, n_mels, T)
-
-        Returns:
-            logits: (B, T', n_classes)
-        """
         x = x.unsqueeze(1)  # (B, 1, F, T)
         x = self.conv(x)
 

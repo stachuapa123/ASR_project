@@ -22,14 +22,6 @@ def audio_to_logmel(
 ) -> torch.Tensor:
     """
     Convert raw mono audio to log-mel spectrogram.
-
-    Args:
-        audio: numpy array of shape (T,) or (T, channels).
-        sample_rate: original sample rate.
-        standardize: per-frequency standardization if True.
-
-    Returns:
-        mel: (n_mels, T') tensor on CPU.
     """
 
     if audio.ndim == 2:

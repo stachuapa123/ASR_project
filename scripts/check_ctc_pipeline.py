@@ -9,7 +9,7 @@ from src.ctc.dataset import CTCDataset, ctc_collate_fn
 from src.ctc.augmentation import SpecAugment
 from src.ctc.model import CTCModel
 from src.ctc.training import train_ctc
-from src.ctc.metrics import greedy_decode, decode_to_phonemes, compute_per
+from src.ctc.metrics import greedy_decode, decode_to_phones, compute_per
 
 
 def log(message: str) -> None:
@@ -100,10 +100,10 @@ def main() -> int:
         standardize=True,
         noise_prob=0.5,
         gain_prob=0.5,
-        tempo_prob=0.2,
+        speed_perturbation_prob=0.2,
         noise_level=(10.0, 30.0),
         gain_range=(-5.0, 5.0),
-        tempo_range=(0.95, 1.05),
+        speed_perturbation_range=(0.95, 1.05),
     )
 
     n_total = len(dataset)
@@ -225,8 +225,8 @@ def main() -> int:
 
         # Show target vs prediction for first item
         log("Sample decoding comparison (1st item):")
-        log(f"  Target:      {decode_to_phonemes(unpadded_targets[0])}")
-        log(f"  Prediction:  {decode_to_phonemes(decoded_batch[0])}")
+        log(f"  Target:      {decode_to_phones(unpadded_targets[0])}")
+        log(f"  Prediction:  {decode_to_phones(decoded_batch[0])}")
 
         # Verify the saved checkpoint records the val_loss at the best-PER epoch
         saved_val_loss = checkpoint.get("val_loss")

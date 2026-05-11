@@ -7,13 +7,6 @@ from .config import CTCConfig as C
 def greedy_decode(logits: torch.Tensor, blank: int = C.BLANK_IDX) -> list[list[int]]:
     """
     Greedy CTC decoding: argmax per time step, collapse repeats, drop blanks.
-
-    Args:
-        logits: (B, T, num_classes) tensor.
-        blank: index of the CTC blank symbol.
-
-    Returns:
-        List of length B with decoded index sequences.
     """
 
     pred_indices = torch.argmax(logits, dim=-1)  # (B, T)
@@ -33,13 +26,13 @@ def greedy_decode(logits: torch.Tensor, blank: int = C.BLANK_IDX) -> list[list[i
     return decoded_batch
 
 
-def decode_to_phonemes(
+def decode_to_phones(
     indices: list[int],
     idx2label: Mapping[int, str] | None = None,
     sep: str = " ",
 ) -> str:
     """
-    Convert a sequence of indices to a phoneme string.
+    Convert a sequence of indices to a phone string.
     """
 
     mapping = C.IDX2LABEL if idx2label is None else idx2label
@@ -48,7 +41,7 @@ def decode_to_phonemes(
 
 def compute_per(preds: list[list[int]], targets: list[list[int]]) -> float:
     """
-    Phoneme Error Rate (PER) = total edit distance / total target phonemes.
+    Phone Error Rate (PER) = total edit distance / total target phones.
     """
 
     total_distance = 0

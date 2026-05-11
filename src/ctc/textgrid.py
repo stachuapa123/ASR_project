@@ -3,19 +3,12 @@ from collections.abc import Mapping
 from .config import CTCConfig as C
 
 
-def parse_phoneme_intervals(
+def parse_phone_intervals(
     text_grid: str,
     map_sp_to_sil: bool = True,
 ) -> list[tuple[float, float, str]]:
     """
     Extract (start, end, label) intervals from the "phones" tier of a TextGrid.
-
-    Args:
-        text_grid: Entire TextGrid file as a string.
-        map_sp_to_sil: If True, map "sp" (pause) to "sil".
-
-    Returns:
-        List of (xmin, xmax, label) tuples for each phone interval.
     """
 
     tier_name = "phones"  # Section in TextGrid to look for intervals in
@@ -55,7 +48,7 @@ def parse_phoneme_intervals(
     return intervals
 
 
-def textgrid_to_phoneme_ids(
+def textgrid_to_phone_ids(
     textgrid_path: str | Path,
     label2idx: Mapping[str, int] = C.LABEL2IDX,
     map_sp_to_sil: bool = True,
@@ -66,7 +59,7 @@ def textgrid_to_phoneme_ids(
 
     textgrid_path = Path(textgrid_path)
     with textgrid_path.open("r", encoding="utf-8") as f:
-        intervals = parse_phoneme_intervals(f.read(), map_sp_to_sil=map_sp_to_sil)
+        intervals = parse_phone_intervals(f.read(), map_sp_to_sil=map_sp_to_sil)
 
     indices: list[int] = []
     for _, _, label in intervals:
