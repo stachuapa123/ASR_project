@@ -104,7 +104,7 @@ def windows_and_labels_soft(mel, phonemes):
         t_end = end * frame_dur
         win_dur = t_end - t_start
 
-        # Soft label: wektor proporcji wszystkich fonemów
+        # Soft label wektor proporcji wszystkich fonemów
         label = torch.zeros(C.N_CLASSES)
 
         for pmin, pmax, ptext in phonemes:
@@ -114,11 +114,11 @@ def windows_and_labels_soft(mel, phonemes):
             if overlap > 0:
                 label[C.LABEL2IDX[ptext]] += overlap / win_dur
 
-        # Pomiń okna bez żadnego fonemu (czysta cisza poza datasetem etc.)
+        
         if label.sum() < 0.01:
             continue
 
-        # Normalizuj — czasem może być sum < 1 (gdy fonem jest poza zakresem labelów)
+        # Normalizacja — czasem może być sum < 1 (gdy fonem jest poza zakresem labelów)
         label = label / label.sum()
 
         out.append((mel[:, start:end].clone(), label))
@@ -155,7 +155,7 @@ def windows_and_labels_soft(mel, phonemes):
         if label.sum() < 0.01:
             continue
 
-        # normalizuj — czasem suma < 1 (gdy fonem poza zakresem)
+        # normalizacja — czasem suma < 1 (gdy fonem poza zakresem)
         label = label / label.sum()
 
         out.append((mel[:, start:end].clone(), label))
@@ -534,7 +534,7 @@ class CachedPhonemeDataset(Dataset):
     def __getitem__(self, idx):
         x = self.X[idx]
         if self.augment is not None:
-            x = x.clone()  # nie modyfikuj cache
+            x = x.clone()  
             x = self.augment(x)
         return x, self.y[idx]
 
@@ -594,8 +594,8 @@ class SoftLabelCacheDataset(Dataset):
         y: (n_windows, n_classes) — soft labels (proporcje fonemów)
         train: bool — train=True losuje wariant, train=False używa oryginału (idx 0)
         """
-        self.X = X.to(device)  # przenieś do GPU jeśli dostępne
-        self.y = y.to(device)  # przenieś do GPU jeśli dostępne
+        self.X = X.to(device)  #  GPU jeśli dostępne
+        self.y = y.to(device)  # do GPU jeśli dostępne
         self.train = train
 
     def __len__(self):
@@ -613,8 +613,8 @@ class DoubledSoftLabelCacheDataset(Dataset):
     """Soft labels + każda próbka 2× per epoka (raz oryginał, raz aug)."""
 
     def __init__(self, X, y, train=True, device="cuda"):
-        self.X = X.to(device)  # przenieś do GPU jeśli dostępne
-        self.y = y.to(device)  # przenieś do GPU jeśli dostępne
+        self.X = X.to(device)  #  GPU jeśli dostępne
+        self.y = y.to(device)  # do GPU jeśli dostępne
         self.train = train
 
     def __len__(self):
