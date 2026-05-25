@@ -18,8 +18,145 @@ PHONEME_TO_LETTERS = {
     # cisza
     'sil': '', 'sp': '',
 }
+WLIST = ['alibaba', 'mysz', 'kotek', 'samochod', 'komputer', 'telefon', 'dom', 'drzewo', 'kwiat', 'lampa', 'banany', 'siema', 
+         'cesarz', 'informatyka', 'programowanie', 'kot', 'kawa', 
+         'herbata', 'rower', 'samolot', 'statek', 'góra', 'rzeka', 'las', 
+         'miasto', 'piesek', 'jajeczko', 'matematyka', 'fizyka', 'chemia', 'biologia', 'historia',
+           'geografia', 'filozofia', 'psychologia', 'sztuka', 'muzyka', 'sport', 'kino', 'barcelona', 'politechnika', 'marynarz'
+           ,'kropelka', 'polska', 'niemcy', 'włochy', 'francja', 'hiszpania', 'anglia', 'rosja', 'usa', 'japonia', 'chiny', 'indie'
+           'ukraina', 'siedemnaście', 'osiemnaście', 'dziewiętnaście', 'dwadzieścia', 'trzydzieści', 'czterdzieści', 'pięćdziesiąt', 'sześćdziesiąt',
+           
 
+          ]
+WLIST1000 = [
+    # Zwierzęta
+    'pies', 'ptak', 'rybka', 'chomik', 'krowa', 'koń', 'świnia', 'owca', 'koza', 'kura',
+    'kaczka', 'gęś', 'indyk', 'wąż', 'jaszczurka', 'żaba', 'pająk', 'mucha', 'komar', 'osa',
+    'pszczoła', 'mrówka', 'motyl', 'tygrys', 'lew', 'słoń', 'żyrafa', 'małpa', 'niedźwiedź', 'wilk',
+    'lis', 'zając', 'królik', 'jeleń', 'sarna', 'dzik', 'wiewiórka', 'jeż', 'nietoperz', 'rekin',
+    'wieloryb', 'delfin', 'foka', 'pingwin', 'orzeł', 'sokół', 'gołąb', 'wróbel', 'sikorka', 'kruk',
+    'sowa', 'bocian', 'łabędź', 'karp', 'szczupak', 'śledź', 'łoś', 'żubr', 'ryś', 'borsuk',
+    'kret', 'bóbr', 'wydra', 'kuna', 'łasica', 'szop', 'hipopotam', 'nosorożec', 'zebra', 'krokodyl',
+    'aligator', 'żółw', 'skorpion', 'stonoga', 'dżdżownica', 'ślimak', 'rak', 'krab', 'ośmiornica', 'meduza',
+    'struś', 'paw', 'papuga', 'kanarek', 'kogut', 'bażant', 'kuropatwa', 'przepiórka', 'dzięcioł', 'kukułka',
+    'słowik', 'skowronek', 'mewa', 'pelikan', 'flaming', 'anakonda', 'boa', 'kobra', 'pyton', 'żmija',
 
+    # Jedzenie i napoje
+    'chleb', 'masło', 'ser', 'mleko', 'woda', 'sok', 'jabłko', 'gruszka', 'śliwka', 'truskawka',
+    'malina', 'jagoda', 'ziemniak', 'pomidor', 'ogórek', 'cebula', 'czosnek', 'marchew', 'pietruszka', 'seler',
+    'por', 'kapusta', 'sałata', 'rzodkiewka', 'mięso', 'kurczak', 'wieprzowina', 'wołowina', 'ryba', 'sól',
+    'pieprz', 'cukier', 'mąka', 'ryż', 'makaron', 'kasza', 'jajko', 'śniadanie', 'obiad', 'kolacja',
+    'deser', 'zupa', 'ciasto', 'lody', 'czekolada', 'cukierek', 'lizak', 'ciastko', 'tort', 'wino',
+    'piwo', 'wódka', 'szampan', 'koniak', 'likier', 'rumianek', 'kefir', 'kakao', 'kompot', 'lemoniada',
+    'orzech', 'migdał', 'rodzynki', 'daktyle', 'figi', 'banan', 'pomarańcza', 'mandarynka', 'cytryna', 'grapefruit',
+    'kiwi', 'ananas', 'mango', 'arbuz', 'melon', 'brzoskwinia', 'morela', 'wiśnia', 'czereśnia', 'agrest',
+    'porzeczka', 'borówka', 'żurawina', 'papryka', 'dynia', 'cukinia', 'bakłażan', 'brokuł', 'kalafior', 'szpinak',
+    'fasola', 'groch', 'soczewica', 'bób', 'koper', 'bazylia', 'oregano', 'tymianek', 'rozmaryn', 'cynamon',
+
+    # Dom, budynki i przedmioty codziennego użytku
+    'okno', 'drzwi', 'ściana', 'podłoga', 'sufit', 'dach', 'pokój', 'kuchnia', 'łazienka', 'sypialnia',
+    'salon', 'korytarz', 'piwnica', 'strych', 'garaż', 'schody', 'balkon', 'taras', 'ogród', 'płot',
+    'brama', 'klucz', 'zamek', 'klamka', 'dzwonek', 'stół', 'krzesło', 'fotel', 'kanapa', 'łóżko',
+    'szafa', 'komoda', 'półka', 'biurko', 'dywan', 'obraz', 'lustro', 'zegar', 'telewizor', 'radio',
+    'lodówka', 'pralka', 'zmywarka', 'kuchenka', 'mikrofalówka', 'piekarnik', 'odkurzacz', 'żelazko', 'deska', 'garnek',
+    'patelnia', 'talerz', 'kubek', 'szklanka', 'sztućce', 'nóż', 'widelec', 'łyżka', 'miska', 'dzbanek',
+    'długopis', 'ołówek', 'gumka', 'linijka', 'zeszyt', 'książka', 'kartka', 'papier', 'koperta', 'znaczek',
+    'gazeta', 'czasopismo', 'notes', 'kalendarz', 'teczka', 'nożyczki', 'klej', 'taśma', 'spinacz', 'pinezka',
+    'worek', 'torba', 'pudełko', 'karton', 'butelka', 'puszka', 'słoik', 'tuba', 'beczka', 'wiadro',
+    'szczotka', 'miotła', 'mop', 'gąbka', 'ścierka', 'ręcznik', 'mydło', 'szampon', 'pasta', 'krem',
+
+    # Ciało i ubrania
+    'głowa', 'włosy', 'twarz', 'oko', 'ucho', 'nos', 'usta', 'ząb', 'język', 'warga',
+    'szyja', 'ramię', 'ręka', 'palec', 'kciuk', 'paznokieć', 'klatka', 'pierś', 'brzuch', 'plecy',
+    'kręgosłup', 'noga', 'kolano', 'stopa', 'pięta', 'skóra', 'kość', 'krew', 'mięsień', 'serce',
+    'płuco', 'żołądek', 'wątroba', 'nerka', 'mózg', 'jelito', 'żyła', 'tętnica', 'nerw', 'staw',
+    'czaszka', 'szczęka', 'broda', 'policzek', 'czoło', 'brew', 'rzęsa', 'powieka', 'łokieć', 'nadgarstek',
+    'biodro', 'udo', 'łydka', 'kostka', 'gardło', 'ubranie', 'koszula', 'bluzka', 'sweter', 'bluza',
+    'spodnie', 'dżinsy', 'spódnica', 'sukienka', 'kurtka', 'płaszcz', 'czapka', 'szalik', 'rękawiczka', 'but',
+    'skarpetka', 'rajstopy', 'bielizna', 'majtki', 'biustonosz', 'krawat', 'pasek', 'torebka', 'plecak', 'portfel',
+    'okulary', 'zegarek', 'pierścionek', 'naszyjnik', 'kolczyk', 'bransoletka', 'garnitur', 'kalesony', 'szlafrok', 'piżama',
+    'kapelusz', 'kask', 'sandały', 'kozak', 'kalosz', 'kamizelka', 'kaptur', 'guzik', 'suwak', 'kieszeń',
+
+    # Natura, czas i zjawiska geograficzne
+    'słońce', 'księżyc', 'gwiazda', 'niebo', 'chmura', 'deszcz', 'śnieg', 'wiatr', 'burza', 'mgła',
+    'lód', 'mróz', 'ciepło', 'zimno', 'ogień', 'ziemia', 'powietrze', 'piasek', 'kamień', 'skała',
+    'trawa', 'liść', 'gałąź', 'korzeń', 'pień', 'krzew', 'mech', 'grzyb', 'morze', 'ocean',
+    'jezioro', 'staw', 'strumień', 'dolina', 'pagórek', 'szczyt', 'wyspa', 'plaża', 'wybrzeże', 'pustynia',
+    'dżungla', 'bór', 'piorun', 'błyskawica', 'grzmot', 'tęcza', 'huragan', 'tornado', 'powódź', 'trzęsienie',
+    'sekunda', 'minuta', 'godzina', 'dzień', 'noc', 'rano', 'wieczór', 'południe', 'północ', 'tydzień',
+    'miesiąc', 'rok', 'wiek', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota', 'niedziela',
+    'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik',
+    'listopad', 'grudzień', 'wiosna', 'lato', 'jesień', 'zima', 'wczoraj', 'dzisiaj', 'jutro', 'przedwczoraj',
+    'pojutrze', 'teraz', 'zaraz', 'potem', 'nigdy', 'zawsze', 'często', 'rzadko', 'czasem', 'wkrótce',
+
+    # Miasto, transport, praca i rodzina
+    'auto', 'pociąg', 'tramwaj', 'autobus', 'trolejbus', 'metro', 'prom', 'łódź', 'żaglówka', 'helikopter',
+    'rakieta', 'motocykl', 'skuter', 'hulajnoga', 'rolki', 'wrotki', 'deskorolka', 'bilet', 'stacja', 'przystanek',
+    'dworzec', 'lotnisko', 'port', 'ulica', 'droga', 'autostrada', 'chodnik', 'ścieżka', 'skrzyżowanie', 'rondo',
+    'most', 'tunel', 'wiadukt', 'wypadek', 'korek', 'sklep', 'apteka', 'piekarnia', 'rzeźnik', 'warzywniak',
+    'market', 'galeria', 'teatr', 'muzeum', 'biblioteka', 'szkoła', 'przedszkole', 'uniwersytet', 'szpital', 'przychodnia',
+    'bank', 'poczta', 'policja', 'straż', 'kościół', 'cmentarz', 'park', 'plac', 'pomnik', 'fontanna',
+    'restauracja', 'kawiarnia', 'pub', 'hotel', 'basen', 'stadion', 'boisko', 'siłownia', 'klub', 'praca',
+    'szef', 'pracownik', 'biuro', 'fabryka', 'firma', 'pensja', 'lekarz', 'pielęgniarka', 'nauczyciel', 'uczeń',
+    'student', 'inżynier', 'architekt', 'prawnik', 'sędzia', 'policjant', 'strażak', 'żołnierz', 'rolnik', 'górnik',
+    'rodzina', 'matka', 'ojciec', 'mama', 'tata', 'syn', 'córka', 'brat', 'siostra', 'dziadek',
+
+    # Emocje, pojęcia abstrakcyjne, narzędzia i sztuka
+    'babcia', 'wnuk', 'wnuczka', 'wujek', 'ciocia', 'kuzyn', 'kuzynka', 'mąż', 'żona', 'teść',
+    'miłość', 'nienawiść', 'radość', 'smutek', 'strach', 'złość', 'gniew', 'zaskoczenie', 'zdziwienie', 'nadzieja',
+    'wiara', 'szczęście', 'pech', 'ból', 'zdrowie', 'choroba', 'życie', 'śmierć', 'pokój', 'wojna',
+    'wolność', 'niewola', 'prawda', 'kłamstwo', 'dobro', 'zło', 'piękno', 'brzydota', 'mądrość', 'głupota',
+    'siła', 'słabość', 'odwaga', 'tchórzostwo', 'duma', 'wstyd', 'wina', 'kara', 'nagroda', 'cel',
+    'sens', 'marzenie', 'pomysł', 'myśl', 'pamięć', 'uwaga', 'rozum', 'dusza', 'wola', 'charakter',
+    'osobowość', 'los', 'przeznaczenie', 'przypadek', 'sukces', 'porażka', 'problem', 'rozwiązanie', 'pytanie', 'odpowiedź',
+    'przyczyna', 'skutek', 'początek', 'koniec', 'środek', 'część', 'całość', 'różnica', 'podobieństwo', 'waga',
+    'młotek', 'śrubokręt', 'wiertarka', 'piła', 'gwóźdź', 'śruba', 'klucz', 'obcęgi', 'kombinerki', 'gitara',
+    'pianino', 'skrzypce', 'flet', 'bęben', 'trąbka', 'saksofon', 'wiolonczela', 'perkusja', 'rytm', 'malarz',
+
+    # Czasowniki (część 1)
+    'być', 'mieć', 'móc', 'chcieć', 'musieć', 'wiedzieć', 'mówić', 'robić', 'widzieć', 'iść',
+    'dać', 'wziąć', 'spać', 'jeść', 'pić', 'stać', 'siedzieć', 'leżeć', 'biec', 'jechać',
+    'latać', 'pływać', 'skakać', 'padać', 'rzucać', 'łapać', 'trzymać', 'nosić', 'ciągnąć', 'pchać',
+    'otwierać', 'zamykać', 'zaczynać', 'kończyć', 'szukać', 'znajdować', 'gubić', 'chować', 'pokazywać', 'patrzeć',
+    'słuchać', 'słyszeć', 'czuć', 'pachnieć', 'smakować', 'dotykać', 'myśleć', 'pamiętać', 'zapominać', 'rozumieć',
+    'uczyć', 'studiować', 'czytać', 'pisać', 'liczyć', 'rysować', 'malować', 'śpiewać', 'tańczyć', 'grać',
+    'pracować', 'odpoczywać', 'bawić', 'śmiać', 'płakać', 'cieszyć', 'martwić', 'złościć', 'bać', 'kochać',
+    'lubić', 'nienawidzić', 'szanować', 'pomagać', 'przeszkadzać', 'pytać', 'odpowiadać', 'prosić', 'dziękować', 'przepraszać',
+    'witać', 'żegnać', 'zapraszać', 'spotykać', 'czekać', 'spieszyć', 'spóźniać', 'zdążyć', 'trwać', 'zmieniać',
+    'rosnąć', 'maleć', 'budować', 'niszczyć', 'tworzyć', 'kupować', 'sprzedawać', 'płacić', 'kosztować', 'kraść',
+
+    # Czasowniki (część 2) i Przymiotniki (część 1)
+    'oszukiwać', 'walczyć', 'bronić', 'atakować', 'uciekać', 'gonić', 'wygrywać', 'przegrywać', 'rodzić', 'umierać',
+    'żyć', 'mieszkać', 'pochodzić', 'nazywać', 'wyglądać', 'znaczyć', 'wydawać', 'zgadzać', 'proponować', 'decydować',
+    'dobry', 'zły', 'wielki', 'mały', 'nowy', 'stary', 'młody', 'długi', 'krótki', 'wysoki',
+    'niski', 'szeroki', 'wąski', 'gruby', 'chudy', 'ciężki', 'lekki', 'gorący', 'ciepły', 'zimny',
+    'chłodny', 'mokry', 'suchy', 'twardy', 'miękki', 'ostry', 'tępy', 'gładki', 'szorstki', 'jasny',
+    'ciemny', 'czysty', 'brudny', 'ładny', 'piękny', 'brzydki', 'mądry', 'głupi', 'bogaty', 'biedny',
+    'zdrowy', 'chory', 'silny', 'słaby', 'szybki', 'wolny', 'głośny', 'cichy', 'tani', 'drogi',
+    'łatwy', 'trudny', 'prosty', 'krzywy', 'pełny', 'pusty', 'wesoły', 'smutny', 'grzeczny', 'niegrzeczny',
+    'miły', 'niemiły', 'ciekawy', 'nudny', 'ważny', 'nieważny', 'prawdziwy', 'fałszywy', 'zajęty', 'gotowy',
+    'zmęczony', 'głodny', 'spragniony', 'pijany', 'trzeźwy', 'śpiący', 'odważny', 'tchórzliwy', 'dumny', 'skromny',
+
+    # Przymiotniki (część 2), Spójniki, Przyimki, Zaimki i Kolory
+    'uczciwy', 'kłamliwy', 'leniwy', 'pracowity', 'spokojny', 'nerwowy', 'ostrożny', 'niebezpieczny', 'bezpieczny', 'dziwny',
+    'normalny', 'śmieszny', 'poważny', 'łagodny', 'gorzki', 'słodki', 'kwaśny', 'słony', 'pyszny', 'ohydny',
+    'świeży', 'zepsuty', 'wczesny', 'późny', 'pierwszy', 'ostatni', 'kolejny', 'następny', 'poprzedni', 'lewy',
+    'prawy', 'górny', 'dolny', 'środkowy', 'główny', 'poboczny', 'biały', 'czarny', 'czerwony', 'niebieski',
+    'zielony', 'żółty', 'brązowy', 'pomarańczowy', 'fioletowy', 'różowy', 'szary', 'złoty', 'srebrny', 'bardzo',
+    'mało', 'dużo', 'trochę', 'wcale', 'też', 'także', 'oraz', 'lub', 'albo', 'czy',
+    'jeśli', 'jeżeli', 'ponieważ', 'dlatego', 'więc', 'zatem', 'jednak', 'ale', 'lecz', 'chociaż',
+    'mimo', 'tylko', 'nawet', 'już', 'jeszcze', 'znowu', 'przecież', 'chyba', 'tutaj', 'tam',
+    'stąd', 'gdzie', 'kiedy', 'dlaczego', 'kto', 'który', 'czyj', 'mój', 'twój', 'jego',
+    'jej', 'nasz', 'wasz', 'ich', 'siebie', 'sobie', 'mną', 'tobą', 'nim', 'nią'
+
+    'alibaba', 'mysz', 'kotek', 'samochod', 'komputer', 'telefon', 'dom', 'drzewo', 'kwiat', 'lampa', 'banany', 'siema', 
+    'cesarz', 'informatyka', 'programowanie', 'kot', 'kawa', 
+    'herbata', 'rower', 'samolot', 'statek', 'góra', 'rzeka', 'las', 
+    'miasto', 'piesek', 'jajeczko', 'matematyka', 'fizyka', 'chemia', 'biologia', 'historia',
+    'geografia', 'filozofia', 'psychologia', 'sztuka', 'muzyka', 'sport', 'kino', 'barcelona', 'politechnika', 'marynarz',
+    'kropelka', 'polska', 'niemcy', 'włochy', 'francja', 'hiszpania', 'anglia', 'rosja', 'usa', 'japonia', 'chiny', 'indie'
+    'ukraina', 'siedemnaście', 'osiemnaście', 'dziewiętnaście', 'dwadzieścia', 'trzydzieści', 'czterdzieści', 'pięćdziesiąt', 'sześćdziesiąt',
+    ]
 def phonemes_to_text(phonemes, after_silence = False):
     """Konwertuje listę fonemów na tekst z polskimi zasadami."""
     out = []
