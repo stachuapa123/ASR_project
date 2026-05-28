@@ -202,3 +202,32 @@ def levenshtein_distance(s1, s2):
         previous_row = current_row
 
     return previous_row[-1]
+
+
+def parse_words(text_grid, silences_same=True):
+    
+    words = []
+    in_words = False
+    xmin = xmax = None
+    for line in text_grid.split("\n"):
+        print(line)
+        line = line.strip()
+        if 'name = "words"' in line:
+            in_words = True
+            continue
+        if in_words and line.startswith("name =") and "words" not in line:
+            break
+        if not in_words:
+            continue
+        if line.startswith("xmin =") and "intervals" not in line:
+            xmin = float(line.split("=")[1].strip())
+        elif line.startswith("xmax =") and "intervals" not in line:
+            xmax = float(line.split("=")[1].strip())
+        elif line.startswith("text ="):
+            text = line.split("=", 1)[1].strip().strip('"')
+            if text == "sp" and silences_same:
+                text = "sil"
+            if xmin is not None and xmax is not None:
+                words.append((xmin, xmax, text))
+            xmin = xmax = None
+    return words
