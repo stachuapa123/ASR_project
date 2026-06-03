@@ -133,3 +133,65 @@ def evaluate_audio(
         result["accuracy"] = acc
     
     return result
+
+def evaluate_word(mel, model, device=None, top_k=3):
+    if model is None:
+        raise ValueError("model must be provided")
+    if device is None:
+        device = next(model.parameters()).device
+    else:
+        model = model.to(device)
+    n_mels, T = mel.shape
+    frame_dur = C.HOP_LENGTH / C.SAMPLE_RATE
+
+    windows, times = [], []
+    for start in range(0, T - C.WIN_FRAMES + 1, C.SHIFT_FRAMES):
+        end = start + C.WIN_FRAMES
+        windows.append(mel[:, start:end])
+        times.append((start * frame_dur, end * frame_dur))
+    if not windows:
+        print("audio too short for one window")
+        return None
+    X = torch.stack(windows).to(device)
+    
+    # 3. predict
+    model.eval()
+    with torch.no_grad():
+        logits = model(X)
+        probs = torch.softmax(logits, dim=1).cpu()
+    pred_idx = probs.argmax(1).tolist()
+    pred = [C.IDX2LABEL[i] for i in pred_idx]
+    pred_prob = [probs[i, pred_idx[i]].item() for i in range(len(pred_idx))]
+    
+    # 4. NEW — top-k probas zawsze, dla każdego okna
+    probas = []
+    if top_k > 0:
+        for i in range(len(pred)):
+            topv, topi = probs[i].topk(top_k)
+            probas.append({
+                C.IDX2LABEL[j.item()]: v.item()
+                for v, j in zip(topv, topi)
+            })
+    def runs_with_prob(seq, ps):
+        out = []
+        for s, p in zip(seq, ps):
+            if not out or out[-1][0] != s:
+                out.append([s, [p]])
+            else:
+                out[-1][1].append(p)
+        return [(s, len(ps_), sum(ps_) / len(ps_)) for s, ps_ in out]
+    
+    
+    pr = runs_with_prob(pred, pred_prob)
+    #print("\npredicted phoneme sequence (count, avg prob):")
+    #print("  " + " ".join(f"{p}({n},{avg:.2f})" for p, n, avg in pr))
+        
+
+    result = {
+        "probas": probas,                             # zawsze top-k
+        "pred": pred,                                  # NEW — przewidziane fonemy per okno
+        "pred_prob": pred_prob,                        # NEW — pewność per okno
+        "times": times,                                # NEW — czasy per okno
+    }
+        
+    return result

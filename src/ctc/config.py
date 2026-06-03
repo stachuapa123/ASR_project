@@ -12,6 +12,11 @@ class CTCConfig:
     HOP_LENGTH = 160
     N_MELS = 128
 
+    WIN_MS = 80
+    SHIFT_MS = 20
+    FRAME_MS = HOP_LENGTH * 1000 // SAMPLE_RATE  # 10
+    WIN_FRAMES = WIN_MS // FRAME_MS  # 8
+    SHIFT_FRAMES = SHIFT_MS // FRAME_MS 
     # Phone labels
     PHONES = [
         "S",    # sz/rz like in przestrzeń

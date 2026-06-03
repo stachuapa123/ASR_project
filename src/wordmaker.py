@@ -1,3 +1,5 @@
+from pathlib import Path 
+
 PHONEME_TO_LETTERS = {
     # 1:1 mapping
     'a': 'a', 'e': 'e', 'o': 'o', 'u': 'u', 'i': 'i', 'i2': 'y',
@@ -202,3 +204,127 @@ def levenshtein_distance(s1, s2):
         previous_row = current_row
 
     return previous_row[-1]
+
+
+def parse_words(text_grid, silences_same=True, verbose=False):
+    
+    words = []
+    in_words = False
+    xmin = xmax = None
+    for line in text_grid.split("\n"):
+        if verbose:
+            print(line)
+        line = line.strip()
+        if 'name = "words"' in line:
+            in_words = True
+            continue
+        if in_words and line.startswith("name =") and "words" not in line:
+            break
+        if not in_words:
+            continue
+        if line.startswith("xmin =") and "intervals" not in line:
+            xmin = float(line.split("=")[1].strip())
+        elif line.startswith("xmax =") and "intervals" not in line:
+            xmax = float(line.split("=")[1].strip())
+        elif line.startswith("text ="):
+            text = line.split("=", 1)[1].strip().strip('"')
+            if text == "sp" and silences_same:
+                text = "sil"
+            if xmin is not None and xmax is not None:
+                words.append((xmin, xmax, text))
+            xmin = xmax = None
+    return words
+
+
+def proba_predict(result, p=1, longer_reg = False, noise_v=True, aeo_reg = True, verbose=False ):
+    tab = result['probas']
+    longer = ['a', 'e', 'sil']
+    longvowels = ['a', 'e', 'o', 'oc5']
+    k = len(tab[0])
+    dur = len(tab)
+    word = ['sil']
+    wordprob = [1]
+    phonemes = list(tab[0].items())
+    candidates = phonemes
+    for i in range(1, dur):
+
+        phonemes = list(tab[i].items())
+        #if aeou_reg  and len(candidates) > 1 and candidates[0][0] in longvowels and candidates[1][0] in longvowels:
+            #candidates.pop(1)
+        #print(phonemes)
+            
+        lasting = [0] * len(candidates) #lista do sprawdzania czy dany kandydat jest nadal aktualny
+        plist = [pho for pho, va in phonemes]
+        idown = 0
+        for ic in range(len(candidates)):
+            if candidates[ic][0] not in plist:
+                lasting[ic] = 1
+        for ic in range(len(candidates)):
+            if lasting[ic] == 1:
+                candidates.pop(ic-idown)
+                idown += 1
+
+        for i_new in range(k):
+            ph = phonemes[i_new][0]
+            val = phonemes[i_new][1]
+            NEW = True
+
+            for i_old in range(len(candidates)):
+                if(ph == candidates[i_old][0]):
+                    old_p = candidates[i_old][1]
+                    candidates[i_old] = ((ph, val+old_p))
+                    NEW = False
+            if(NEW and val > 0.02):
+                candidates.append((ph, val))
+            candidates.sort(key=lambda item: item[1], reverse=True)
+        
+
+
+        if(candidates[0][1]>p):
+            if (longer_reg and candidates[0][0] in longer):
+                if(candidates[0][1] < 2*p):
+                    continue
+            if(candidates[0][0] != word[-1]):
+                word.append(candidates[0][0])
+                wordprob.append(candidates[0][1])
+            candidates = candidates[1:]
+            #candidates = []
+        #print(candidates)
+
+
+    if noise_v:
+        for i in range(len(word)-2, 0, -1):
+            if (word[i-1] == 'sil' and word[i+1] == 'sil'):
+                word.pop(i)
+                word.pop(i)
+                wordprob.pop(i)
+                wordprob.pop(i)
+    
+    if aeo_reg:
+        for i in range(len(word)-1, 0, -1):
+                if (word[i] in longvowels and word[i-1] in longvowels):
+                    word.pop(i)
+                    wordprob.pop(i)
+    if(verbose):
+        print("here is word: ")
+        for i in range(len(word)):
+            print(word[i], round(wordprob[i], 2))
+    
+    return word
+    #print(word)
+    #print(wordprob)
+
+def list_add(word_list, word_grid):
+    for word in word_grid:
+        if word[2] not in word_list and word[2] != "sil":
+            word_list.append(word[2])
+    return word_list       
+
+def dictionary_extend(word_list, data_dir):
+    tg_paths = sorted(str(p) for p in Path(data_dir).rglob("*.TextGrid"))
+    print(f"znaleziono {len(tg_paths)} plików")
+    for tg_path in tg_paths:
+        with open(tg_path, "r", encoding="utf-8") as f:
+            file_words = parse_words(f.read())
+        word_list = list_add(word_list, file_words)
+    return word_list
