@@ -236,7 +236,7 @@ def parse_words(text_grid, silences_same=True, verbose=False):
     return words
 
 
-def proba_predict(result, p=1, longer_reg = False, noise_v=True, aeo_reg = True ):
+def proba_predict(result, p=1, longer_reg = False, noise_v=True, aeo_reg = True, verbose=False ):
     tab = result['probas']
     longer = ['a', 'e', 'sil']
     longvowels = ['a', 'e', 'o', 'oc5']
@@ -299,15 +299,16 @@ def proba_predict(result, p=1, longer_reg = False, noise_v=True, aeo_reg = True 
                 word.pop(i)
                 wordprob.pop(i)
                 wordprob.pop(i)
-    print("here is word: ")
+    
     if aeo_reg:
         for i in range(len(word)-1, 0, -1):
                 if (word[i] in longvowels and word[i-1] in longvowels):
                     word.pop(i)
                     wordprob.pop(i)
-
-    for i in range(len(word)):
-        print(word[i], round(wordprob[i], 2))
+    if(verbose):
+        print("here is word: ")
+        for i in range(len(word)):
+            print(word[i], round(wordprob[i], 2))
     
     return word
     #print(word)
