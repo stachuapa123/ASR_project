@@ -49,7 +49,7 @@ class CTCDataset(Dataset):
         speed_perturbation_prob: float = 0.3,
         noise_level: tuple[float, float] = (15.0, 30.0),
         gain_range: tuple[float, float] = (-3.0, 3.0),
-        speed_perturbation_range: tuple[float, float] = (0.9, 1.1),
+        speed_factors: tuple[float, ...] = (0.9, 1.0, 1.1),
     ) -> None:
         super().__init__()
 
@@ -68,7 +68,7 @@ class CTCDataset(Dataset):
         self.speed_perturbation_prob = speed_perturbation_prob
         self.noise_level = noise_level
         self.gain_range = gain_range
-        self.speed_perturbation_range = speed_perturbation_range
+        self.speed_factors = speed_factors
 
         self.mel_transform = T.MelSpectrogram(
             sample_rate=self.sample_rate,
@@ -179,7 +179,7 @@ class CTCDataset(Dataset):
                 speed_perturbation_prob=self.speed_perturbation_prob,
                 noise_level=self.noise_level,
                 gain_range=self.gain_range,
-                speed_perturbation_range=self.speed_perturbation_range,
+                speed_factors=self.speed_factors,
             )
             mel_aug = audio_to_logmel(
                 audio=audio_aug,
@@ -220,7 +220,7 @@ class CTCDataset(Dataset):
                 noise_prob=0.0,
                 gain_prob=0.0,
                 speed_perturbation_prob=self.speed_perturbation_prob,
-                speed_perturbation_range=self.speed_perturbation_range,
+                speed_factors=self.speed_factors,
             )
             items.append((wav_aug, target_tensor))
 

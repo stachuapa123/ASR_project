@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import torch
 import torchaudio
@@ -14,12 +16,15 @@ def augment_waveform(
     speed_perturbation_prob: float = 0.3,
     noise_level: tuple[float, float] = (15.0, 30.0),
     gain_range: tuple[float, float] = (-3.0, 3.0),
-    speed_perturbation_range: tuple[float, float] = (0.9, 1.1),
+    speed_factors: tuple[float, ...] = (0.9, 1.0, 1.1),
 ) -> torch.Tensor:
     """
     Waveform-level augmentation: noise, gain, speed perturbation.
 
     Accepts a NumPy array or a torch.Tensor and always returns a torch.Tensor.
+
+    ``speed_factors`` must be a *discrete* set of factors (see
+    ``_apply_speed_perturbation``); a continuous range is pathologically slow.
     """
 
     if isinstance(audio, np.ndarray):
@@ -38,7 +43,7 @@ def augment_waveform(
 
     # Speed perturbation
     if torch.rand(1).item() < speed_perturbation_prob:
-        audio = _apply_speed_perturbation(audio, sample_rate, speed_perturbation_range)
+        audio = _apply_speed_perturbation(audio, sample_rate, speed_factors)
 
     return audio
 
@@ -59,12 +64,14 @@ def _apply_gain(audio: torch.Tensor, gain_range: tuple[float, float]) -> torch.T
 
 
 def _apply_speed_perturbation(
-    audio: torch.Tensor, sr: int, perturbation_range: tuple[float, float]
+    audio: torch.Tensor, sr: int, factors: tuple[float, ...]
 ) -> torch.Tensor:
-    rate = (
-        perturbation_range[0]
-        + (perturbation_range[1] - perturbation_range[0]) * torch.rand(1).item()
-    )
+    """
+    Speed-perturb by a factor drawn from a discrete set.
+    """
+    rate = random.choice(factors)
+    if rate == 1.0:
+        return audio  # identity; skip the resample entirely
     perturbed, _ = torchaudio.functional.speed(audio.unsqueeze(0), sr, rate)
     return perturbed.squeeze(0)
 

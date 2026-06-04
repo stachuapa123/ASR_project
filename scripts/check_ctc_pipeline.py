@@ -104,7 +104,7 @@ def main() -> int:
         n_mels=args.n_mels,
         standardize=True,
         speed_perturbation_prob=0.2,
-        speed_perturbation_range=(0.95, 1.05),
+        speed_factors=(0.9, 1.0, 1.1),
     )
 
     n_total = len(dataset)
