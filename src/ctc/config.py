@@ -16,46 +16,47 @@ class CTCConfig:
     SHIFT_MS = 20
     FRAME_MS = HOP_LENGTH * 1000 // SAMPLE_RATE  # 10
     WIN_FRAMES = WIN_MS // FRAME_MS  # 8
-    SHIFT_FRAMES = SHIFT_MS // FRAME_MS 
+    SHIFT_FRAMES = SHIFT_MS // FRAME_MS
+
     # Phone labels
     PHONES = [
-        "S",    # sz/rz like in przestrzeń
-        "Z",    # ż/rz like in rzeka
+        "S",  # sz/rz like in przestrzeń
+        "Z",  # ż/rz like in rzeka
         "a",
         "b",
         "c",
         "d",
-        "dZ",   # dż
+        "dZ",  # dż
         "dz",
         "dzj",  # dź/dzi
         "e",
         "eo5",  # ę
         "f",
         "g",
-        "h",    # h/ch
+        "h",  # h/ch
         "i",
-        "i2",   # y
+        "i2",  # y
         "j",
         "k",
         "l",
         "m",
         "n",
-        "n~",   # ń/ni
+        "n~",  # ń/ni
         "o",
         "oc5",  # ą
         "p",
         "r",
         "s",
-        "sj",   # ś/si
+        "sj",  # ś/si
         "sil",  # silence
         "t",
-        "tS",   # cz
+        "tS",  # cz
         "tsj",  # ć/ci
-        "u",    # u/ó
-        "v",    # w
-        "w",    # ł
+        "u",  # u/ó
+        "v",  # w
+        "w",  # ł
         "z",
-        "zj",   # ź/zi
+        "zj",  # ź/zi
     ]
 
     BLANK_IDX = 0  # CTC blank token index
@@ -63,9 +64,8 @@ class CTCConfig:
     IDX2LABEL = {idx: label for label, idx in LABEL2IDX.items()}
     N_CLASSES = len(PHONES) + 1  # Includes blank
 
-    # Time reduction factor of the acoustic model (pooling on time axis).
-    # With 2x MaxPool2d((2, 2)) time is reduced by ~4.
-    TIME_REDUCTION_FACTOR = 4
+    # Time reduction factor of the acoustic model (pooling on time axis)
+    TIME_REDUCTION_FACTOR = 2
 
     @staticmethod
     def get_device() -> torch.device:

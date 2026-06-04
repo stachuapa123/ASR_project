@@ -5,7 +5,8 @@ import torch
 from torch.utils.data import DataLoader, random_split
 
 from src.ctc.config import CTCConfig as C
-from src.ctc.dataset import CTCDataset, ctc_collate_fn
+from src.ctc.dataset import CTCDataset, waveform_collate_fn
+from src.ctc.features import CTCFeatureExtractor
 from src.ctc.augmentation import SpecAugment
 from src.ctc.model import CTCModel
 from src.ctc.training import train_ctc
@@ -41,7 +42,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--apply-aug",
         action="store_true",
-        help="Precompute waveform augmentations into cache",
+        help="Apply speed-perturbation augmentation in the dataset "
+        "(noise/gain/SpecAugment run on-device in the feature extractor)",
     )
     parser.add_argument("--n-mels", type=int, default=C.N_MELS)
     parser.add_argument("--n-fft", type=int, default=C.N_FFT)
@@ -87,29 +89,28 @@ def main() -> int:
     log(f"data_dir: {data_dir}")
     log(f"device: {device}")
 
-    # 1. Dataset construction (no dataset-level augmentation here)
+    # 1. Dataset construction (waveform mode: features are built on-device).
+    #    Only speed perturbation runs in the dataset; noise/gain/SpecAugment
+    #    are applied batched by the CTCFeatureExtractor during training.
     dataset = CTCDataset(
         data_root=data_dir,
         cache_mode=args.cache_mode,
         apply_augmentations=args.apply_aug,
+        return_waveform=True,
         max_files=args.max_files,
         sample_rate=C.SAMPLE_RATE,
         n_fft=args.n_fft,
         hop_length=args.hop_length,
         n_mels=args.n_mels,
         standardize=True,
-        noise_prob=0.5,
-        gain_prob=0.5,
         speed_perturbation_prob=0.2,
-        noise_level=(10.0, 30.0),
-        gain_range=(-5.0, 5.0),
-        speed_perturbation_range=(0.95, 1.05),
+        speed_factors=(0.9, 1.0, 1.1),
     )
 
     n_total = len(dataset)
     if n_total == 0:
         raise SystemExit("No files found in the dataset")
-    log(f"total items loaded (mel, target pairs): {n_total}")
+    log(f"total items loaded (waveform, target pairs): {n_total}")
 
     # 2. Train/Val split
     if n_total < 2:
@@ -131,7 +132,7 @@ def main() -> int:
         train_set,
         batch_size=args.batch_size,
         shuffle=True,
-        collate_fn=ctc_collate_fn,
+        collate_fn=waveform_collate_fn,
         num_workers=0,
         pin_memory=True,
     )
@@ -139,7 +140,7 @@ def main() -> int:
         val_set,
         batch_size=args.batch_size,
         shuffle=False,
-        collate_fn=ctc_collate_fn,
+        collate_fn=waveform_collate_fn,
         num_workers=0,
         pin_memory=True,
     )
@@ -159,7 +160,19 @@ def main() -> int:
 
     scaler = torch.amp.GradScaler(device=device.type, enabled=(device.type == "cuda"))
 
-    mel_augmenter = SpecAugment()
+    # On-device feature extraction: log-mel + batched noise/gain + SpecAugment.
+    feature_extractor = CTCFeatureExtractor(
+        sample_rate=C.SAMPLE_RATE,
+        n_fft=args.n_fft,
+        hop_length=args.hop_length,
+        n_mels=args.n_mels,
+        standardize=True,
+        spec_augment=SpecAugment(n_mels=args.n_mels),
+        noise_prob=0.5,
+        gain_prob=0.5,
+        noise_level=(10.0, 30.0),
+        gain_range=(-5.0, 5.0),
+    ).to(device)
 
     # 5. Training with temporary checkpoint.
     # The best checkpoint is now selected by lowest validation PER, not CTC loss.
@@ -175,7 +188,7 @@ def main() -> int:
             objective=criterion,
             device=device,
             n_epochs=args.epochs,
-            spec_augment=mel_augmenter,
+            feature_extractor=feature_extractor,
             scheduler=scheduler,
             scaler=scaler,
             save_best_to=tmp_ckpt,
@@ -199,20 +212,29 @@ def main() -> int:
         reloaded_model.load_state_dict(checkpoint["model_state_dict"])
         reloaded_model.eval()
 
-        # Take one batch from train_loader
-        mels, targets, in_lens, t_lens = next(iter(train_loader))
+        # Take one batch from train_loader (raw waveforms) and build features
+        # on-device, exactly as during training (without augmentation).
+        waveforms, targets, wav_lens, t_lens = next(iter(train_loader))
 
+        feature_extractor.eval()
         with torch.no_grad():
-            mels_dev = mels.to(device)
-            logits = reloaded_model(mels_dev)
+            waveforms_dev = waveforms.to(device)
+            mels, mel_lengths = feature_extractor(
+                waveforms_dev, wav_lens.to(device), augment=False
+            )
+            logits = reloaded_model(mels)
 
-        log(f"Input batch shape   (B, Mels, Time): {tuple(mels.shape)}")
+        # Valid output frames per sample (mirrors evaluate_epoch).
+        adj_input_lengths = mel_lengths // C.TIME_REDUCTION_FACTOR
+
+        log(f"Input batch shape  (B, Samples): {tuple(waveforms.shape)}")
+        log(f"Feature shape      (B, Mels, Time): {tuple(mels.shape)}")
         log(f"Output logits shape (B, Time', Cls): {tuple(logits.shape)}")
-        log(f"Length tensor shape  (B): {tuple(in_lens.shape)}")
+        log(f"Length tensor shape  (B): {tuple(wav_lens.shape)}")
 
-        # Decode batch with greedy CTC
+        # Decode batch with greedy CTC over valid frames only
         cpu_logits = logits.cpu()
-        decoded_batch = greedy_decode(cpu_logits)
+        decoded_batch = greedy_decode(cpu_logits, lengths=adj_input_lengths.cpu())
 
         # Unpad targets for PER computation
         unpadded_targets: list[list[int]] = []
