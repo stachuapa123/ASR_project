@@ -298,8 +298,7 @@ def proba_predict(result, p=1, longer_reg = False, noise_v=True, aeo_reg = True,
                 word.pop(i)
                 word.pop(i)
                 wordprob.pop(i)
-                wordprob.pop(i)
-    
+                wordprob.pop(i)    
     if aeo_reg:
         for i in range(len(word)-1, 0, -1):
                 if (word[i] in longvowels and word[i-1] in longvowels):
