@@ -243,10 +243,12 @@ def train_ctc(
                     model.parameters(), max_norm=grad_clip_norm
                 )
 
+            prev_scale = scaler.get_scale()
             scaler.step(optimizer)
             scaler.update()
 
-            if scheduler is not None and step_scheduler_per_batch:
+            optimizer_stepped = scaler.get_scale() >= prev_scale
+            if scheduler is not None and step_scheduler_per_batch and optimizer_stepped:
                 scheduler.step()
 
             batch_size = targets.size(0)
