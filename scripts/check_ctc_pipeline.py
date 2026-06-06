@@ -11,6 +11,7 @@ from src.ctc.augmentation import SpecAugment
 from src.ctc.model import CTCModel
 from src.ctc.training import train_ctc
 from src.ctc.metrics import greedy_decode, decode_to_phones, compute_per
+from src.utils.paths import find_data_dir
 
 
 def log(message: str) -> None:
@@ -53,23 +54,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default=default_device)
 
     return parser.parse_args()
-
-
-def find_data_dir(base_dir: str) -> str | None:
-    """
-    Try to find a PSD-like data directory under ./data.
-    Adjust candidates to your actual layout if needed.
-    """
-    candidates = [
-        os.path.join(base_dir, "data", "1-500"),
-        os.path.join(base_dir, "data", "501-1000"),
-        os.path.join(base_dir, "data", "1001-1500"),
-        os.path.join(base_dir, "data"),  # fallback
-    ]
-    for path in candidates:
-        if os.path.isdir(path):
-            return path
-    return None
 
 
 def main() -> int:

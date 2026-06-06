@@ -2,6 +2,7 @@ import torch
 from collections.abc import Mapping
 
 from .config import CTCConfig as C
+from src.utils.edit_distance import corpus_error_rate
 
 
 def greedy_decode(
@@ -54,39 +55,4 @@ def compute_per(preds: list[list[int]], targets: list[list[int]]) -> float:
     Phone Error Rate (PER) = total edit distance / total target phones.
     """
 
-    total_distance = 0
-    total_length = 0
-
-    for pred, target in zip(preds, targets):
-        total_distance += _levenshtein_distance(pred, target)
-        total_length += len(target)
-
-    if total_length == 0:
-        return 0.0
-
-    return total_distance / total_length
-
-
-def _levenshtein_distance(seq1: list[int], seq2: list[int]) -> int:
-    """
-    Standard dynamic-programming edit distance for integer sequences.
-    """
-
-    m, n = len(seq1), len(seq2)
-    dp = [[0] * (n + 1) for _ in range(m + 1)]
-
-    for i in range(m + 1):
-        dp[i][0] = i
-    for j in range(n + 1):
-        dp[0][j] = j
-
-    for i in range(1, m + 1):
-        for j in range(1, n + 1):
-            cost = 0 if seq1[i - 1] == seq2[j - 1] else 1
-            dp[i][j] = min(
-                dp[i - 1][j] + 1,
-                dp[i][j - 1] + 1,
-                dp[i - 1][j - 1] + cost,
-            )
-
-    return dp[m][n]
+    return corpus_error_rate(preds, targets)

@@ -1,6 +1,3 @@
-import torch
-
-
 class CTCConfig:
     """
     Central configuration for CTC-based Polish ASR
@@ -66,11 +63,3 @@ class CTCConfig:
 
     # Time reduction factor of the acoustic model (pooling on time axis)
     TIME_REDUCTION_FACTOR = 2
-
-    @staticmethod
-    def get_device() -> torch.device:
-        if torch.cuda.is_available():
-            return torch.device("cuda")
-        if torch.mps.is_available():
-            return torch.device("mps")
-        return torch.device("cpu")
