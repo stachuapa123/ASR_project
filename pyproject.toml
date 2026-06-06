@@ -5,13 +5,16 @@ description = "Automatic speech recognition for Polish spoken words"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "accelerate>=1.13.0",
     "matplotlib>=3.10.8",
-    "optuna>=4.8.0",
+    "protobuf>=7.35.0",
     "scipy>=1.17.1",
+    "sentencepiece>=0.2.1",
     "sounddevice>=0.5.5",
     "torch>=2.11.0",
     "torchaudio>=2.11.0",
     "torchmetrics>=1.9.0",
+    "transformers>=4.46,<5",
 ]
 
 [dependency-groups]
