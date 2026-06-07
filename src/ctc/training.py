@@ -70,15 +70,22 @@ def evaluate_epoch(
     device: torch.device,
     time_reduction_factor: int = C.TIME_REDUCTION_FACTOR,
     use_amp: bool | None = None,
+    feature_extractor: torch.nn.Module | None = None,
 ) -> tuple[float, float]:
     """
     Run one validation epoch.
+
+    When ``feature_extractor`` is provided, batches are
+    (waveforms, targets, wav_lengths, target_lengths) and log-mel features are
+    computed on-device (no augmentation). Otherwise batches are precomputed mels.
 
     Returns:
         mean_ctc_loss: mean CTC loss
         per: Phone Error Rate
     """
     model.eval()
+    if feature_extractor is not None:
+        feature_extractor.eval()
     total_loss = 0.0
     total_samples = 0
 
@@ -90,8 +97,8 @@ def evaluate_epoch(
         use_amp = device.type == "cuda"
 
     with torch.no_grad():
-        for mels, targets, input_lengths, target_lengths in val_loader:
-            mels = mels.to(device, non_blocking=True)
+        for inputs, targets, input_lengths, target_lengths in val_loader:
+            inputs = inputs.to(device, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
             input_lengths = input_lengths.to(device, non_blocking=True)
             target_lengths = target_lengths.to(device, non_blocking=True)
@@ -100,12 +107,20 @@ def evaluate_epoch(
                 device_type=device.type,
                 enabled=use_amp,
             ):
+                if feature_extractor is not None:
+                    # inputs are raw waveforms; build mels + adjusted lengths
+                    mels, mel_lengths = feature_extractor(
+                        inputs, input_lengths, augment=False
+                    )
+                    adj_input_lengths = mel_lengths // time_reduction_factor
+                else:
+                    mels = inputs
+                    adj_input_lengths = input_lengths // time_reduction_factor
+
                 logits = model(mels)  # (B, T', C+1)
 
                 log_probs = F.log_softmax(logits, dim=-1)
                 log_probs = log_probs.transpose(0, 1)  # (T', B, C+1)
-
-                adj_input_lengths = input_lengths // time_reduction_factor
 
                 loss = criterion(
                     log_probs,
@@ -118,8 +133,8 @@ def evaluate_epoch(
             total_loss += loss.item() * batch_size
             total_samples += batch_size
 
-            # Greedy-decode logits and collect targets for PER
-            decoded = greedy_decode(logits)
+            # Greedy-decode logits (only valid frames) and collect targets for PER
+            decoded = greedy_decode(logits, lengths=adj_input_lengths)
             all_preds.extend(decoded)
             all_targets.extend(
                 [t[:l].tolist() for t, l in zip(targets.cpu(), target_lengths.cpu())]
@@ -148,13 +163,21 @@ def train_ctc(
     grad_clip_norm: float | None = 2.0,
     step_scheduler_per_batch: bool = True,
     checkpoint_config: dict[str, Any] | None = None,
+    feature_extractor: torch.nn.Module | None = None,
 ) -> torch.nn.Module:
     """
     CTC training loop.
 
     Model selection (early stopping + best checkpoint) is driven by validation PER.
+
+    When ``feature_extractor`` is provided, the loaders yield raw waveforms
+    (waveforms, targets, wav_lengths, target_lengths) and log-mel features +
+    augmentation are computed batched on-device. In that mode the standalone
+    ``spec_augment`` argument is ignored (the extractor owns SpecAugment).
     """
     model.to(device)
+    if feature_extractor is not None:
+        feature_extractor.to(device)
 
     if use_amp is None:
         use_amp = device.type == "cuda"
@@ -174,16 +197,13 @@ def train_ctc(
         running_loss = 0.0
         running_count = 0
 
-        for batch_idx, (mels, targets, input_lengths, target_lengths) in enumerate(
+        for batch_idx, (inputs, targets, input_lengths, target_lengths) in enumerate(
             train_loader
         ):
-            mels = mels.to(device, non_blocking=True)
+            inputs = inputs.to(device, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
             input_lengths = input_lengths.to(device, non_blocking=True)
             target_lengths = target_lengths.to(device, non_blocking=True)
-
-            if spec_augment is not None:
-                mels = spec_augment(mels)
 
             optimizer.zero_grad(set_to_none=True)
 
@@ -191,12 +211,23 @@ def train_ctc(
                 device_type=device.type,
                 enabled=use_amp,
             ):
+                if feature_extractor is not None:
+                    # inputs are raw waveforms; build mels + adjusted lengths.
+                    # Augmentation (noise/gain + SpecAugment) is applied inside.
+                    mels, mel_lengths = feature_extractor(
+                        inputs, input_lengths, augment=True
+                    )
+                    adj_input_lengths = mel_lengths // time_reduction_factor
+                else:
+                    mels = inputs
+                    if spec_augment is not None:
+                        mels = spec_augment(mels)
+                    adj_input_lengths = input_lengths // time_reduction_factor
+
                 logits = model(mels)  # (B, T', C+1)
 
                 log_probs = F.log_softmax(logits, dim=-1)
                 log_probs = log_probs.transpose(0, 1)  # (T', B, C+1)
-
-                adj_input_lengths = input_lengths // time_reduction_factor
 
                 loss = objective(
                     log_probs,
@@ -212,10 +243,12 @@ def train_ctc(
                     model.parameters(), max_norm=grad_clip_norm
                 )
 
+            prev_scale = scaler.get_scale()
             scaler.step(optimizer)
             scaler.update()
 
-            if scheduler is not None and step_scheduler_per_batch:
+            optimizer_stepped = scaler.get_scale() >= prev_scale
+            if scheduler is not None and step_scheduler_per_batch and optimizer_stepped:
                 scheduler.step()
 
             batch_size = targets.size(0)
@@ -237,13 +270,16 @@ def train_ctc(
             device=device,
             time_reduction_factor=time_reduction_factor,
             use_amp=use_amp,
+            feature_extractor=feature_extractor,
         )
 
         # Model selection and early stopping are driven by PER
         improved = val_per < best_val_per
         if improved:
             best_val_per = val_per
-            best_state = model.state_dict()
+            best_state = {
+                k: v.detach().cpu().clone() for k, v in model.state_dict().items()
+            }
             if save_best_to is not None:
                 save_checkpoint(
                     save_best_to,
