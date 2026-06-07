@@ -1,5 +1,5 @@
 from pathlib import Path 
-
+from src.constants import Constants as C
 PHONEME_TO_LETTERS = {
     # 1:1 mapping
     'a': 'a', 'e': 'e', 'o': 'o', 'u': 'u', 'i': 'i', 'i2': 'y',
@@ -342,3 +342,56 @@ def dictionary_extend(word_list, data_dir):
             file_words = parse_words(f.read())
         word_list = list_add(word_list, file_words)
     return word_list
+
+def mel_cut(word_info, mel): #(start_time, end_time, word)
+    hop_time = C.FRAME_MS / 1000
+    n_start = int(word_info[0] / hop_time)
+    n_end = int(word_info[1] / hop_time)
+    mel_exact = mel[:,n_start:n_end]
+    return mel_exact
+
+from src.evaluator import evaluate_word
+from src.levenshtein import lev_weighted
+from src.parsers import wav_to_logmel
+
+def predict_from_exact_mel(target_word, mel_exact, dictionary, model, lev = lev_weighted, verbose=False, proba_threshold=0.67, top_phonemes=4):
+    result = evaluate_word(mel=mel_exact, model=model, top_k=top_phonemes)
+    w = proba_predict(result, p=proba_threshold, longer_reg = True, aeo_reg=True, verbose=False)
+    wtext = phonemes_to_text(w, after_silence=False)
+    output = dictionary[0]
+    mindist = 1000
+    for wr in dictionary:
+        dist = lev(wr, wtext)
+        if dist < mindist:
+            mindist = dist
+            output = wr
+    if(verbose):
+        print(f'word from model: {wtext}')
+        print(f'output: {output}')
+        print(f'target: {target_word}')
+    return output
+
+def folder_search_accuracy(model, data_dir, dictionary, lev):
+    correct = 0
+    incorrect = 0 
+    tg_paths = sorted(str(p) for p in Path(data_dir).rglob("*.TextGrid"))
+    print(f"found {len(tg_paths)} files, search works")
+
+    for tg in tg_paths:
+
+        wav_path = tg[: -len(".TextGrid")] + ".wav"
+        PATH = Path(tg)
+        with open(PATH, "r", encoding="utf-8") as f:
+            words_timeframes = parse_words(f.read())
+        mel = wav_to_logmel(wav_path=wav_path)
+
+        for w_info in words_timeframes:
+            if(w_info[2] != 'sil' and (w_info[1] - w_info[0]) > C.WIN_MS/1000):
+                mel_exact = mel_cut(w_info, mel)
+                output = predict_from_exact_mel(w_info[2], mel_exact, dictionary, model, lev=lev, verbose=False)
+                if output == w_info[2]:
+                    correct += 1
+                else:
+                    incorrect += 1
+                    
+    return correct / (correct+incorrect)

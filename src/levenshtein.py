@@ -119,10 +119,11 @@ PHONEME_GROUPS2 = {
 
 VERY_SIMILAR2 = [
     {'s', 'z'}, {'p', 'b'}, {'t', 'd'}, {'k', 'g'}, {'f', 'w'},
-    {'sz', 'rz'}, {'tS', 'dZ'}, {'tsj', 'dzj'}, {'ś', 'ź'},
-    {'ś', 'sz'}, {'tsj', 'tS'},
+    {'s', 'r'}, {'ć', 'ź'}, {'ś', 'ź'},
+    {'ś', 's'},
     {'a', 'o'}, {'e', 'y'}, {'i', 'y'}, {'i', 'j'},
-    {'a', 'e'}, {'a', 'ą'}, {'e', 'ę'}
+    {'a', 'e'}, {'a', 'ą'}, {'e', 'ę'},
+     
 ]
 
 ORTHOGRAPHY = [
@@ -134,7 +135,7 @@ def phoneme_substitution_cost(a, b):
         return 0.0
     if {a, b} in ORTHOGRAPHY:
         return 0.0
-    if {a, b} in VERY_SIMILAR:
+    if {a, b} in VERY_SIMILAR2:
         return 0.3
     for group in PHONEME_GROUPS2.values():
         if a in group and b in group:
@@ -160,7 +161,7 @@ def substitution_cost(a, b):
     ]
 
     orthographic_pairs = [
-        {'rz', 'ż'}, {'u', 'ó'}, {'h', 'ch'} 
+        {'u', 'ó'} 
     ]
     for pair in similar_pairs:
         if {a, b} == pair:
