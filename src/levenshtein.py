@@ -262,7 +262,7 @@ def context_aware_deletion_cost(predicted, idx,
 
 def damerau_levenshtein_neighbour_aware(predicted, target,
                                         base_delete=0.6,
-                                        base_insert=0.8,
+                                        base_insert=0.6,
                                         base_transpose=0.5,
                                         duplicate_discount=0.5,
                                         similar_discount=0.3,
