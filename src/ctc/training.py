@@ -72,16 +72,10 @@ def evaluate_epoch(
     use_amp: bool | None = None,
     feature_extractor: torch.nn.Module | None = None,
 ) -> tuple[float, float]:
-    """
-    Run one validation epoch.
+    """Run one validation epoch -> (mean CTC loss, PER).
 
-    When ``feature_extractor`` is provided, batches are
-    (waveforms, targets, wav_lengths, target_lengths) and log-mel features are
-    computed on-device (no augmentation). Otherwise batches are precomputed mels.
-
-    Returns:
-        mean_ctc_loss: mean CTC loss
-        per: Phone Error Rate
+    With ``feature_extractor``, batches are waveforms (features built on-device, no
+    aug); otherwise precomputed mels.
     """
     model.eval()
     if feature_extractor is not None:
@@ -89,7 +83,7 @@ def evaluate_epoch(
     total_loss = 0.0
     total_samples = 0
 
-    # Accumulate decoded predictions and ground-truth targets for PER computation.
+    # collect preds + targets for PER
     all_preds: list[list[int]] = []
     all_targets: list[list[int]] = []
 
@@ -133,7 +127,7 @@ def evaluate_epoch(
             total_loss += loss.item() * batch_size
             total_samples += batch_size
 
-            # Greedy-decode logits (only valid frames) and collect targets for PER
+            # greedy-decode valid frames; collect targets for PER
             decoded = greedy_decode(logits, lengths=adj_input_lengths)
             all_preds.extend(decoded)
             all_targets.extend(
@@ -165,15 +159,10 @@ def train_ctc(
     checkpoint_config: dict[str, Any] | None = None,
     feature_extractor: torch.nn.Module | None = None,
 ) -> torch.nn.Module:
-    """
-    CTC training loop.
+    """CTC training loop; model selection (early stop + best checkpoint) by val PER.
 
-    Model selection (early stopping + best checkpoint) is driven by validation PER.
-
-    When ``feature_extractor`` is provided, the loaders yield raw waveforms
-    (waveforms, targets, wav_lengths, target_lengths) and log-mel features +
-    augmentation are computed batched on-device. In that mode the standalone
-    ``spec_augment`` argument is ignored (the extractor owns SpecAugment).
+    With ``feature_extractor``, loaders yield raw waveforms and features+augmentation
+    run on-device (the standalone ``spec_augment`` arg is then ignored).
     """
     model.to(device)
     if feature_extractor is not None:
@@ -182,7 +171,7 @@ def train_ctc(
     if use_amp is None:
         use_amp = device.type == "cuda"
 
-    # If caller did not pass a scaler, create  one for CUDA, or disable on CPU
+    # default scaler: enabled on CUDA, off on CPU
     if scaler is None:
         scaler = torch.amp.GradScaler(
             device=device.type,
@@ -212,8 +201,7 @@ def train_ctc(
                 enabled=use_amp,
             ):
                 if feature_extractor is not None:
-                    # inputs are raw waveforms; build mels + adjusted lengths.
-                    # Augmentation (noise/gain + SpecAugment) is applied inside.
+                    # raw waveforms -> mels (+augmentation) on device
                     mels, mel_lengths = feature_extractor(
                         inputs, input_lengths, augment=True
                     )
@@ -247,6 +235,7 @@ def train_ctc(
             scaler.step(optimizer)
             scaler.update()
 
+            # don't step the scheduler when AMP skipped the optimizer step
             optimizer_stepped = scaler.get_scale() >= prev_scale
             if scheduler is not None and step_scheduler_per_batch and optimizer_stepped:
                 scheduler.step()
@@ -273,7 +262,7 @@ def train_ctc(
             feature_extractor=feature_extractor,
         )
 
-        # Model selection and early stopping are driven by PER
+        # select + early-stop on PER
         improved = val_per < best_val_per
         if improved:
             best_val_per = val_per

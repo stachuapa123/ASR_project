@@ -11,11 +11,10 @@ def load_weights(
     model: torch.nn.Module,
     map_location: torch.device | str | None = None,
 ) -> dict[str, Any]:
-    """Load a model's weights from a checkpoint into ``model`` in place.
+    """Load weights into ``model`` in place; return checkpoint metadata (or {}).
 
-    Accepts both standardized checkpoints (a dict with a ``model_state_dict``
-    key plus metadata) and bare ``state_dict`` files. Returns the remaining
-    metadata (everything except ``model_state_dict``), or an empty dict.
+    Accepts both standardized checkpoints (``model_state_dict`` + metadata) and
+    bare state_dict files.
     """
     ckpt = torch.load(path, map_location=map_location)
     if isinstance(ckpt, dict) and "model_state_dict" in ckpt:

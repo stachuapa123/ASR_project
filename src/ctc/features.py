@@ -22,12 +22,8 @@ def audio_to_logmel(
     mel_transform: T.MelSpectrogram | None = None,
     db_transform: T.AmplitudeToDB | None = None,
 ) -> torch.Tensor:
-    """
-    Convert raw mono audio to log-mel spectrogram.
-
-    Accepts either a NumPy array or a torch.Tensor (e.g. an already-augmented
-    waveform). The result stays on the input tensor's device.
-    """
+    """Raw mono audio -> log-mel. Accepts ndarray or tensor; result stays on the
+    input tensor's device."""
 
     if isinstance(audio, np.ndarray):
         wav = torch.from_numpy(audio).float()
@@ -100,13 +96,10 @@ def wav_path_to_logmel(
 
 
 class CTCFeatureExtractor(nn.Module):
-    """
-    On-device, batched log-mel feature extraction for CTC training.
+    """On-device batched log-mel features for CTC, with optional length-preserving
+    augmentation (noise+gain on the waveform, then SpecAugment on the mel).
 
-    Takes a padded batch of raw waveforms and produces standardized log-mel spectrograms entirely on the module's device.
-    Optional, length-preserving augmentation (additive noise + gain on the waveform, then SpecAugment on the mel)
-
-    Length-changing augmentation (speed perturbation) is intentionally NOT done here; it must happen per-file on CPU before batching (see CTCDataset).
+    Speed perturbation (length-changing) is NOT done here — per-file on CPU (see CTCDataset).
     """
 
     def __init__(
@@ -149,12 +142,7 @@ class CTCFeatureExtractor(nn.Module):
     def _masked_standardize(
         self, mel: torch.Tensor, lengths: torch.Tensor
     ) -> torch.Tensor:
-        """
-        Per-sample standardization over valid frames only.
-
-        mel: (B, F, T). Mean/std are computed across the time axis using each
-        sample's valid length so zero-padded frames don't skew the statistics.
-        """
+        """Per-sample standardization over valid (non-padded) frames only. mel: (B,F,T)."""
 
         b, f, t = mel.shape
         frame_idx = torch.arange(t, device=mel.device).view(1, 1, t)
@@ -175,17 +163,10 @@ class CTCFeatureExtractor(nn.Module):
         wav_lengths: torch.Tensor,
         augment: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        waveforms: (B, T_samples) padded, on this module's device.
-        wav_lengths: (B,) valid sample counts.
+        """waveforms (B, T_samples) padded; wav_lengths (B,).
+        Returns (mel (B,F,T'), mel_lengths (B,))."""
 
-        Returns (mel (B, F, T'), mel_lengths (B,)).
-        """
-
-        # Feature extraction must run in fp32. Under AMP autocast the power
-        # spectrogram and AmplitudeToDB's amin clamp (1e-10) underflow to 0 in
-        # fp16, giving log10(0) = -inf and then NaN. Forcing autocast off here
-        # keeps the STFT/log path numerically safe regardless of the caller.
+        # fp32 only: under fp16 AMP the power spectrogram underflows to 0 -> log -> NaN
         with torch.autocast(device_type=waveforms.device.type, enabled=False):
             waveforms = waveforms.float()
 

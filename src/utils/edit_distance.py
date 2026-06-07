@@ -1,9 +1,6 @@
-"""
-Edit distance and corpus-level error rate over token sequences.
+"""Edit distance + corpus error rate over token sequences.
 
-Pure-Python (no torch) so torch-free metric modules can depend on it. The same
-``corpus_error_rate`` backs PER (phone-id lists), WER (word-token lists) and CER
-(character lists) — error rate is just total edits / total reference length.
+``corpus_error_rate`` backs PER, WER and CER (total edits / total reference length).
 """
 
 from collections.abc import Iterable, Sequence
@@ -28,10 +25,8 @@ def edit_distance(a: Sequence, b: Sequence) -> int:
 
 
 def corpus_error_rate(preds: Iterable[Sequence], refs: Iterable[Sequence]) -> float:
-    """Aggregate error rate = total edit distance / total reference length.
-
-    ``preds``/``refs`` are iterables of token sequences (e.g. phone-id lists,
-    word lists, character lists). Returns 0.0 when the references are empty.
+    """Total edit distance / total reference length over iterables of token
+    sequences (phone-id/word/char lists). Returns 0.0 when references are empty.
     """
     dist = 0
     total = 0

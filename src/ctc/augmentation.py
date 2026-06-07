@@ -18,13 +18,9 @@ def augment_waveform(
     gain_range: tuple[float, float] = (-3.0, 3.0),
     speed_factors: tuple[float, ...] = (0.9, 1.0, 1.1),
 ) -> torch.Tensor:
-    """
-    Waveform-level augmentation: noise, gain, speed perturbation.
+    """Waveform augmentation: noise, gain, speed. Returns a torch.Tensor.
 
-    Accepts a NumPy array or a torch.Tensor and always returns a torch.Tensor.
-
-    ``speed_factors`` must be a *discrete* set of factors (see
-    ``_apply_speed_perturbation``); a continuous range is pathologically slow.
+    ``speed_factors`` must be discrete (a continuous range is pathologically slow).
     """
 
     if isinstance(audio, np.ndarray):
@@ -81,12 +77,9 @@ def apply_noise_batch(
     noise_level: tuple[float, float] = (15.0, 30.0),
     prob: float = 0.5,
 ) -> torch.Tensor:
-    """
-    Batched, on-device additive Gaussian noise at a per-sample random SNR.
+    """Batched additive Gaussian noise at a per-sample random SNR (on device).
 
-    waveforms: (B, T). Each sample is independently noised with probability
-    `prob`; the SNR is drawn per sample from `noise_level` (dB). Vectorized so
-    it runs entirely on the input tensor's device.
+    waveforms (B, T); each sample noised with probability ``prob``.
     """
 
     b = waveforms.shape[0]
@@ -100,7 +93,7 @@ def apply_noise_batch(
     noise = torch.randn_like(waveforms) * noise_power.sqrt().unsqueeze(1)
 
     apply = (torch.rand(b, device=device) < prob).float().unsqueeze(1)
-    # Skip samples with negligible energy to avoid amplifying silence
+    # skip near-silent samples (don't amplify silence)
     apply = apply * (signal_power > 1e-10).float().unsqueeze(1)
     return waveforms + apply * noise
 
@@ -110,11 +103,9 @@ def apply_gain_batch(
     gain_range: tuple[float, float] = (-3.0, 3.0),
     prob: float = 0.5,
 ) -> torch.Tensor:
-    """
-    Batched, on-device gain at a per-sample random level (dB).
+    """Batched gain at a per-sample random level dB (on device).
 
-    waveforms: (B, T). Each sample is independently scaled with probability
-    `prob` by a gain drawn from `gain_range`.
+    waveforms (B, T); each sample scaled with probability ``prob``.
     """
 
     b = waveforms.shape[0]
@@ -125,7 +116,7 @@ def apply_gain_batch(
     )
     gain = 10.0 ** (gain_db / 20.0)
     apply = (torch.rand(b, device=device) < prob).float()
-    # Where not applied, gain factor is 1.0
+    # where not applied, gain factor is 1.0
     factor = torch.where(apply.bool(), gain, torch.ones_like(gain))
     return waveforms * factor.unsqueeze(1)
 
@@ -134,7 +125,10 @@ class SpecAugment:
     def __init__(
         self,
         n_mels: int = C.N_MELS,
+        num_masks: int = 1,
     ) -> None:
+        # num_masks applies each mask N times (1 = original single-mask behaviour)
+        self.num_masks = num_masks
         self.freq_mask = T.FrequencyMasking(freq_mask_param=int(0.2 * n_mels))
         self.time_mask = T.TimeMasking(time_mask_param=25, p=0.2)
 
@@ -143,8 +137,9 @@ class SpecAugment:
         Apply augmentation to a single (F, T) tensor.
         """
 
-        mel = self.freq_mask(mel)
-        mel = self.time_mask(mel)
+        for _ in range(self.num_masks):
+            mel = self.freq_mask(mel)
+            mel = self.time_mask(mel)
         return mel
 
     def __call__(self, mels: torch.Tensor) -> torch.Tensor:

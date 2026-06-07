@@ -1,9 +1,4 @@
-"""
-CTC acoustic-model inference: checkpoint loading and wav -> phone labels.
-
-This is the CTC stage's own inference home; downstream stages (e.g. P2G) import
-from here rather than re-implementing model loading and greedy decoding.
-"""
+"""CTC inference: checkpoint loading and wav -> phone labels (used by P2G too)."""
 
 import torch
 

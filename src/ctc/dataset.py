@@ -18,16 +18,11 @@ from .textgrid import textgrid_to_phone_ids
 
 
 class CTCDataset(Dataset):
-    """
-    Dataset for CTC training.
+    """CTC dataset, two output modes:
 
-    Two output modes:
-      * mel mode (default): each item is (mel (F, T), target (U,)). Log-mel
-        features are computed on CPU in the DataLoader workers.
-      * waveform mode (``return_waveform=True``): each item is
-        (waveform (T_samples,), target (U,)). Feature extraction is deferred to
-        a CTCFeatureExtractor running batched on the GPU; only length-changing
-        augmentation (speed perturbation) is applied here.
+      * mel (default): items are (mel (F,T), target (U,)); features on CPU workers.
+      * waveform (``return_waveform=True``): items are (waveform, target); features
+        deferred to a GPU CTCFeatureExtractor, only speed perturbation done here.
     """
 
     def __init__(
@@ -36,6 +31,7 @@ class CTCDataset(Dataset):
         cache_mode: bool = False,
         apply_augmentations: bool = False,
         max_files: int | None = None,
+        speakers: set[str] | None = None,
         sample_rate: int = C.SAMPLE_RATE,
         n_fft: int = C.N_FFT,
         hop_length: int = C.HOP_LENGTH,
@@ -80,15 +76,16 @@ class CTCDataset(Dataset):
         )
         self.db_transform = T.AmplitudeToDB(stype="power")
 
-        # Discover all TextGrid files and pair each with its .wav
+        # discover TextGrid+wav pairs; ``speakers`` keeps only those speaker dirs
         data_root = Path(data_root)
         tg_paths = sorted(str(p) for p in data_root.rglob("*.TextGrid"))
+        if speakers is not None:
+            speakers = set(speakers)
+            tg_paths = [p for p in tg_paths if Path(p).parent.name in speakers]
         if max_files is not None:
             tg_paths = tg_paths[:max_files]
 
-        self.samples: list[
-            tuple[str, str]
-        ] = []  # List of (wav_path, textgrid_path) pairs
+        self.samples: list[tuple[str, str]] = []  # (wav_path, textgrid_path) pairs
         for tg_path in tg_paths:
             wav_path = tg_path[: -len(".TextGrid")] + ".wav"
             if os.path.exists(wav_path):
@@ -96,7 +93,7 @@ class CTCDataset(Dataset):
 
         self.cached_data: list[tuple[torch.Tensor, torch.Tensor]] = []
         if self.cache_mode:
-            # Pre-process every file into RAM once at startup
+            # pre-process every file into RAM once at startup
             print(f"Pre-computing and caching {len(self.samples)} files into RAM...")
             for idx in tqdm.tqdm(range(len(self.samples)), desc="CTC cache"):
                 self.cached_data.extend(
@@ -141,7 +138,7 @@ class CTCDataset(Dataset):
     ) -> list[tuple[torch.Tensor, torch.Tensor]]:
         wav_path, tg_path = self.samples[idx]
 
-        # List of phone indices, length U
+        # list of phone indices, length U
         target_ids = textgrid_to_phone_ids(
             tg_path, label2idx=self.label2idx, map_sp_to_sil=self.map_sp_to_sil
         )
@@ -202,12 +199,8 @@ class CTCDataset(Dataset):
         target_tensor: torch.Tensor,
         return_multiple: bool,
     ) -> list[tuple[torch.Tensor, torch.Tensor]]:
-        """
-        Waveform-mode processing: return raw (resampled) waveforms.
-
-        Only speed perturbation (length-changing) is applied here; noise, gain
-        and SpecAugment are deferred to the GPU feature extractor at train time.
-        """
+        """Return raw resampled waveforms; only speed perturbation here (noise/gain/
+        SpecAugment deferred to the GPU feature extractor)."""
         wav = self._load_waveform(wav_path)
 
         items: list[tuple[torch.Tensor, torch.Tensor]] = [(wav, target_tensor)]
@@ -231,7 +224,7 @@ class CTCDataset(Dataset):
             return self.cached_data[idx]
 
         items = self._process_file(idx, return_multiple=self.apply_augmentations)
-        # With augmentation enabled, return the augmented variant (items[-1]); otherwise the single clean item
+        # aug on -> augmented variant (items[-1]); else the clean item
         return items[-1] if self.apply_augmentations else items[0]
 
 
@@ -239,15 +232,8 @@ def ctc_collate_fn(
     batch: list[tuple[torch.Tensor, torch.Tensor]],
     pad_value: int = C.BLANK_IDX,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """
-    Collate function for CTC training.
-
-    Returns:
-        mels: (B, F, T_max)
-        targets: (B, U_max) padded with CTC blank index
-        input_lengths: (B,) input lengths before conv pooling
-        target_lengths: (B,) target sequence lengths
-    """
+    """Collate CTC batches -> (mels (B,F,T), targets (B,U) blank-padded,
+    input_lengths (B), target_lengths (B))."""
 
     mels, targets = zip(*batch)
 
@@ -271,15 +257,8 @@ def waveform_collate_fn(
     batch: list[tuple[torch.Tensor, torch.Tensor]],
     pad_value: int = C.BLANK_IDX,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """
-    Collate function for waveform-mode CTC training (GPU feature extraction).
-
-    Returns:
-        waveforms: (B, T_samples_max) zero-padded
-        targets: (B, U_max) padded with CTC blank index
-        wav_lengths: (B,) valid sample counts (before padding)
-        target_lengths: (B,) target sequence lengths
-    """
+    """Collate waveform-mode batches (GPU feature extraction) -> (waveforms (B,T)
+    zero-padded, targets (B,U) blank-padded, wav_lengths (B), target_lengths (B))."""
 
     waveforms, targets = zip(*batch)
 

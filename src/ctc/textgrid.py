@@ -11,10 +11,11 @@ def parse_phone_intervals(
     Extract (start, end, label) intervals from the "phones" tier of a TextGrid.
     """
 
-    tier_name = "phones"  # Section in TextGrid to look for intervals in
+    tier_name = "phones"  # TextGrid tier to read
 
     intervals: list[tuple[float, float, str]] = []
 
+    # line-by-line state machine: enter the phones tier, collect xmin/xmax/text per interval
     in_phones = False
     xmin: float | None = None
     xmax: float | None = None

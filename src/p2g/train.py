@@ -1,10 +1,10 @@
-"""
-Fine-tune the P2G seq2seq model on (phone-string, text) pairs.
+"""Fine-tune the P2G seq2seq on (phone-string, text) pairs.
 
-A plain PyTorch loop (no HF Trainer) keeps control simple and avoids
-TrainingArguments API churn across transformers versions. Runs in fp32 — T5
-fine-tuning is unstable under fp16/AMP.
+bf16 autocast on CUDA (fp16 underflows T5). Tokenized once up front, except under
+phone-noise augmentation (re-corrupted + re-tokenized each epoch).
 """
+
+import random
 
 import torch
 from torch.utils.data import DataLoader
@@ -13,34 +13,71 @@ from transformers import get_linear_schedule_with_warmup
 from .config import P2GConfig as P
 from .metrics import corpus_cer, corpus_wer
 from .model import P2GModel
+from .phone_noise import PhoneNoiseProfile
 from src.utils.device import get_device
 
 
-def make_collate(tokenizer, task_prefix: str, max_source: int, max_target: int):
-    """Collate raw rows into a tokenized seq2seq batch (labels padded with -100)."""
+def tokenize_rows(
+    tokenizer, rows: list[dict], task_prefix: str, max_source: int, max_target: int
+) -> list[dict]:
+    """Tokenize each row once (no padding) -> encoder/decoder id lists."""
+    examples: list[dict] = []
+    for r in rows:
+        enc = tokenizer(task_prefix + r["phones"], truncation=True, max_length=max_source)
+        labels = tokenizer(
+            text_target=r["text"], truncation=True, max_length=max_target
+        )["input_ids"]
+        examples.append(
+            {
+                "input_ids": enc["input_ids"],
+                "attention_mask": enc["attention_mask"],
+                "labels": labels,
+            }
+        )
+    return examples
+
+
+def pad_batch(tokenizer):
+    """Collate pre-tokenized examples: pad inputs via the tokenizer, labels with -100."""
 
     def collate(batch: list[dict]) -> dict:
-        sources = [task_prefix + b["phones"] for b in batch]
-        targets = [b["text"] for b in batch]
-        enc = tokenizer(
-            sources,
+        enc = tokenizer.pad(
+            [
+                {"input_ids": b["input_ids"], "attention_mask": b["attention_mask"]}
+                for b in batch
+            ],
             padding=True,
-            truncation=True,
-            max_length=max_source,
             return_tensors="pt",
         )
-        labels = tokenizer(
-            text_target=targets,
-            padding=True,
-            truncation=True,
-            max_length=max_target,
-            return_tensors="pt",
-        )["input_ids"]
-        labels[labels == tokenizer.pad_token_id] = -100
+        max_len = max(len(b["labels"]) for b in batch)
+        labels = torch.full((len(batch), max_len), -100, dtype=torch.long)
+        for i, b in enumerate(batch):
+            labels[i, : len(b["labels"])] = torch.tensor(b["labels"], dtype=torch.long)
         enc["labels"] = labels
         return enc
 
     return collate
+
+
+def corrupt_rows(
+    rows: list[dict], profile: PhoneNoiseProfile, rng: random.Random, sep: str = P.PHONE_SEP
+) -> list[dict]:
+    """Copies of ``rows`` with phone strings corrupted via the CTC error profile."""
+    out: list[dict] = []
+    for r in rows:
+        labels = r["phones"].split(sep) if r["phones"] else []
+        noisy = profile.corrupt(labels, rng)
+        out.append({**r, "phones": sep.join(noisy)})
+    return out
+
+
+def _make_loader(p2g: P2GModel, rows: list[dict], batch_size: int) -> DataLoader:
+    examples = tokenize_rows(
+        p2g.tokenizer, rows, p2g.task_prefix, p2g.max_source_len, p2g.max_target_len
+    )
+    return DataLoader(
+        examples, batch_size=batch_size, shuffle=True, collate_fn=pad_batch(p2g.tokenizer)
+    )
 
 
 def evaluate(
@@ -78,34 +115,29 @@ def train_p2g(
     warmup_ratio: float = 0.1,
     max_grad_norm: float = 1.0,
     early_stopping_patience: int | None = None,
+    val_num_beams: int = 1,
+    use_bf16: bool | None = None,
+    noise_profile: PhoneNoiseProfile | None = None,
+    noise_seed: int = P.SEED,
 ) -> tuple[P2GModel, dict]:
-    """
-    Fine-tune a fresh P2G model and (optionally) save it.
+    """Fine-tune a fresh P2G model, restore the best-by-val-WER epoch, optionally save.
 
-    Robustness:
-      * Linear-warmup → linear-decay LR schedule (``warmup_ratio`` of total steps),
-        stepped per batch — more stable than a flat LR for T5 fine-tuning.
-      * Model selection by **validation WER**: the best epoch's weights are kept and
-        restored at the end (and saved to ``output_dir``), so an overfit final epoch
-        never gets shipped. Requires ``val_rows``; without it the final epoch is used.
-      * Optional early stopping after ``early_stopping_patience`` epochs without a
-        val-WER improvement (``None`` disables it).
-
-    Returns the model and the metrics dict of the selected (best) epoch.
+    Returns (model, best metrics).
     """
     device = device or get_device()
+    if use_bf16 is None:
+        use_bf16 = device.type == "cuda" and torch.cuda.is_bf16_supported()
     p2g = P2GModel(model_name=model_name, device=device)
-    collate = make_collate(
-        p2g.tokenizer, p2g.task_prefix, p2g.max_source_len, p2g.max_target_len
-    )
 
-    loader = DataLoader(
-        train_rows, batch_size=batch_size, shuffle=True, collate_fn=collate
+    # with augmentation the loader is rebuilt each epoch (fresh corruption); else once
+    loader = None if noise_profile is not None else _make_loader(p2g, train_rows, batch_size)
+    steps_per_epoch = (
+        len(loader) if loader is not None else max(1, -(-len(train_rows) // batch_size))
     )
     optimizer = torch.optim.AdamW(
         p2g.model.parameters(), lr=lr, weight_decay=weight_decay
     )
-    total_steps = max(1, len(loader) * epochs)
+    total_steps = max(1, steps_per_epoch * epochs)
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=int(warmup_ratio * total_steps),
@@ -120,24 +152,43 @@ def train_p2g(
 
     for epoch in range(1, epochs + 1):
         p2g.model.train()
+        if noise_profile is not None:
+            rng = random.Random(noise_seed + epoch)
+            epoch_loader = _make_loader(
+                p2g, corrupt_rows(train_rows, noise_profile, rng), batch_size
+            )
+        else:
+            epoch_loader = loader
         total_loss = 0.0
-        for batch in loader:
+        n_batches = len(epoch_loader)
+        for i, batch in enumerate(epoch_loader):
             batch = {k: v.to(device) for k, v in batch.items()}
-            optimizer.zero_grad()
-            loss = p2g.model(**batch).loss
+            optimizer.zero_grad(set_to_none=True)
+            # bf16 autocast, no GradScaler: bf16 doesn't underflow; fp16 NaNs on T5
+            with torch.autocast(
+                device_type=device.type, dtype=torch.bfloat16, enabled=use_bf16
+            ):
+                loss = p2g.model(**batch).loss
             loss.backward()
             torch.nn.utils.clip_grad_norm_(p2g.model.parameters(), max_grad_norm)
             optimizer.step()
             scheduler.step()
             total_loss += loss.item()
 
-        avg_loss = total_loss / max(1, len(loader))
+            # Live per-batch heartbeat (overwritten by the epoch summary below)
+            print(
+                f"\r[p2g] epoch {epoch}/{epochs} | batch {i + 1:4d}/{n_batches} | "
+                f"loss {total_loss / (i + 1):.4f} | lr {scheduler.get_last_lr()[0]:.2e}",
+                end="",
+            )
+
+        avg_loss = total_loss / max(1, n_batches)
         lr_now = scheduler.get_last_lr()[0]
-        msg = f"[p2g] epoch {epoch}/{epochs}  train_loss {avg_loss:.4f}  lr {lr_now:.2e}"
+        msg = f"\r[p2g] epoch {epoch}/{epochs}  train_loss {avg_loss:.4f}  lr {lr_now:.2e}"
 
         if val_rows:
             epoch_metrics = evaluate(
-                p2g, val_rows, batch_size=eval_batch_size, num_beams=num_beams
+                p2g, val_rows, batch_size=eval_batch_size, num_beams=val_num_beams
             )
             improved = epoch_metrics["wer"] < best_wer
             if improved:
@@ -156,7 +207,7 @@ def train_p2g(
                 f"  val_WER {epoch_metrics['wer']:.3f}"
                 f"  val_CER {epoch_metrics['cer']:.3f}{marker}"
             )
-            print(msg)
+            print(msg + " " * 12)  # pad to clear leftover per-batch progress chars
             if (
                 early_stopping_patience is not None
                 and epochs_without_improvement >= early_stopping_patience
@@ -164,7 +215,7 @@ def train_p2g(
                 print(f"[p2g] early stopping: no val-WER gain for {early_stopping_patience} epochs")
                 break
         else:
-            print(msg)
+            print(msg + " " * 20)  # pad to clear leftover per-batch progress chars
 
     if best_state is not None:
         p2g.model.load_state_dict({k: v.to(device) for k, v in best_state.items()})

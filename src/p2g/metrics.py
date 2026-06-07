@@ -1,10 +1,4 @@
-"""
-Word- and character-level error rates for transcription.
-
-Thin wrappers over ``src.utils.edit_distance.corpus_error_rate`` (total edits /
-total reference length) — the standard way to report WER/CER. No jiwer
-dependency; stays torch-free.
-"""
+"""WER/CER wrappers over ``src.utils.edit_distance.corpus_error_rate`` (torch-free)."""
 
 from src.utils.edit_distance import corpus_error_rate
 

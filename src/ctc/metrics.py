@@ -10,12 +10,9 @@ def greedy_decode(
     blank: int = C.BLANK_IDX,
     lengths: torch.Tensor | None = None,
 ) -> list[list[int]]:
-    """
-    Greedy CTC decoding: argmax per time step, collapse repeats, drop blanks.
+    """Greedy CTC decode: argmax, collapse repeats, drop blanks.
 
-    When ``lengths`` (per-sample valid frame counts, e.g. the CTC-adjusted input
-    lengths) is given, only the first ``lengths[i]`` frames of each sequence are
-    decoded so that predictions over padded frames don't pollute the output.
+    ``lengths`` (valid frame counts) limits decoding to non-padded frames.
     """
 
     pred_indices = torch.argmax(logits, dim=-1)  # (B, T)
@@ -42,17 +39,13 @@ def decode_to_phones(
     idx2label: Mapping[int, str] | None = None,
     sep: str = " ",
 ) -> str:
-    """
-    Convert a sequence of indices to a phone string.
-    """
+    """Indices -> phone string."""
 
     mapping = C.IDX2LABEL if idx2label is None else idx2label
     return sep.join(mapping.get(idx, "<UNK>") for idx in indices)
 
 
 def compute_per(preds: list[list[int]], targets: list[list[int]]) -> float:
-    """
-    Phone Error Rate (PER) = total edit distance / total target phones.
-    """
+    """Phone Error Rate = total edit distance / total target phones."""
 
     return corpus_error_rate(preds, targets)

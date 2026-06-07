@@ -1,9 +1,5 @@
-"""
-Thin wrapper around a pretrained seq2seq model for phone-string -> text.
-
-Loads a Hugging Face encoder-decoder (default ``allegro/plt5-small``), formats
-phone strings with an optional T5 task prefix, and generates Polish text.
-"""
+"""Wrapper around a pretrained seq2seq (default ``allegro/plt5-small``) for
+phone-string -> Polish text."""
 
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
@@ -59,13 +55,31 @@ class P2GModel:
         return {k: v.to(self.device) for k, v in enc.items()}
 
     @torch.no_grad()
-    def generate(self, phone_strings: list[str], num_beams: int = 4) -> list[str]:
-        """Generate text for a batch of phone strings."""
+    def generate(
+        self,
+        phone_strings: list[str],
+        num_beams: int = 4,
+        no_repeat_ngram_size: int = 3,
+        repetition_penalty: float = 1.2,
+    ) -> list[str]:
+        """Generate text for a batch of phone strings.
+
+        ``no_repeat_ngram_size``/``repetition_penalty`` suppress T5's repetition
+        loops on noisy phone input.
+        """
         self.model.eval()
         enc = self._encode_source(phone_strings)
-        out = self.model.generate(
-            **enc, num_beams=num_beams, max_length=self.max_target_len
-        )
+        use_bf16 = self.device.type == "cuda" and torch.cuda.is_bf16_supported()
+        with torch.autocast(
+            device_type=self.device.type, dtype=torch.bfloat16, enabled=use_bf16
+        ):
+            out = self.model.generate(
+                **enc,
+                num_beams=num_beams,
+                max_length=self.max_target_len,
+                no_repeat_ngram_size=no_repeat_ngram_size,
+                repetition_penalty=repetition_penalty,
+            )
         return self.tokenizer.batch_decode(out, skip_special_tokens=True)
 
     def transcribe(self, phones: list[str] | str, num_beams: int = 4) -> str:

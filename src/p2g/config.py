@@ -1,34 +1,28 @@
-"""
-Configuration for the phone-to-text (P2G) seq2seq stage.
-
-Mirrors the plain-class style of ``src/ctc/config.py``. The acoustic phone set
-itself lives in ``CTCConfig``; here we only configure the text model that maps a
-phone string to Polish text.
-"""
+"""Config for the phone-to-text (P2G) seq2seq stage (phone set lives in CTCConfig)."""
 
 
 class P2GConfig:
-    # Pretrained seq2seq to fine-tune.
+    # Pretrained seq2seq to fine-tune
     MODEL_NAME = "allegro/plt5-small"
 
-    # Optional T5 task prefix prepended to the phone string (empty string disables it).
+    # T5 task prefix prepended to the phone string (empty disables)
     TASK_PREFIX = "fonemy na tekst: "
 
     # Phone-string formatting.
     KEEP_SIL = True  # keep sil/sp tokens as word-boundary cues
     PHONE_SEP = " "  # phones are joined by this separator
 
-    # Tokenizer length caps (phone strings are long: ~1 token per phone for byte/sp models).
+    # tokenizer length caps (~1 token per phone)
     MAX_SOURCE_LEN = 384
     MAX_TARGET_LEN = 256
 
-    # Target text handling. False -> keep original case + punctuation (true transcription).
-    NORMALIZE_TARGET = False
+    # True -> lowercase + strip punctuation (phones can't encode these)
+    NORMALIZE_TARGET = True
 
-    # Where fine-tuned models are saved (one subdir per run).
+    # fine-tuned models saved here (one subdir per run)
     CHECKPOINT_DIR = "trained_models"
 
-    # Speaker-disjoint split fractions (by speaker, not by utterance).
+    # Speaker-disjoint split fractions
     VAL_SPEAKER_FRAC = 0.15
     TEST_SPEAKER_FRAC = 0.15
 

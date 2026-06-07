@@ -1,14 +1,8 @@
-"""
-Build (phone-string, text) training pairs for the P2G seq2seq stage.
+"""Build (phone-string, text) pairs for P2G.
 
-Two phone sources:
-  * ``mode="pred"``  -> phones predicted by the trained CTC model (greedy decode).
-    The seq2seq then learns to *correct* the acoustic model's real mistakes.
-  * ``mode="clean"`` -> oracle phones from the MFA TextGrid alignment.
-
-Targets are the sibling ``.txt`` transcript. Splits are **speaker-disjoint**:
-whole speaker directories go to train / val / test so WER is not flattered by
-hearing the same voice in training and test.
+Phone source: ``mode="pred"`` = CTC greedy decode (learn to correct real errors);
+``mode="clean"`` = oracle TextGrid phones. Target = sibling ``.txt``. Splits are
+speaker-disjoint.
 """
 
 import json
@@ -20,8 +14,10 @@ import tqdm
 
 from .config import P2GConfig as P
 from src.ctc.config import CTCConfig as C
+from src.ctc.inference import load_ctc_model, wav_to_phone_labels
 from src.ctc.textgrid import textgrid_to_phone_ids
 from src.utils.device import get_device
+from src.utils.speaker_split import split_speakers, three_way_slice
 
 
 _SILENCE = {"sil", "sp"}
@@ -74,16 +70,16 @@ def build_pairs(
     max_files: int | None = None,
     shuffle: bool = False,
     sample_seed: int = P.SEED,
+    speakers: set[str] | None = None,
     progress: bool = True,
 ) -> list[dict]:
-    """
-    Build a list of ``{"phones", "text", "speaker"}`` rows from the corpus.
-
-    ``mode="pred"`` requires a CTC ``checkpoint`` (model is run over the audio).
-    When ``max_files`` is set, ``shuffle=True`` samples across the whole corpus
-    first (so a cap spans many speakers instead of the first few directories).
-    """
+    """Build ``{"phones","text","speaker"}`` rows. ``mode="pred"`` needs a CTC
+    ``checkpoint``; ``speakers`` filters to those dirs; ``shuffle`` spreads a
+    ``max_files`` cap across the corpus."""
     triples = discover_triples(data_root)
+    if speakers is not None:
+        speakers = set(speakers)
+        triples = [t for t in triples if t[3] in speakers]
     if shuffle:
         random.Random(sample_seed).shuffle(triples)
     if max_files is not None:
@@ -93,8 +89,6 @@ def build_pairs(
     if mode == "pred":
         if checkpoint is None:
             raise ValueError("mode='pred' requires a CTC checkpoint")
-        # Deferred so 'clean' mode never imports the CTC model machinery.
-        from src.ctc.inference import load_ctc_model, wav_to_phone_labels
 
         dev = device or get_device()
         ctc_model = load_ctc_model(checkpoint, dev)
@@ -118,16 +112,20 @@ def build_pairs(
     return rows
 
 
-def _three_way_slice(
-    items: list, val_frac: float, test_frac: float, rng: random.Random
-) -> tuple[list, list, list]:
-    """Shuffle a copy of ``items`` and slice it into (train, val, test) lists."""
-    items = items[:]
-    rng.shuffle(items)
-    n = len(items)
-    n_test = max(1, int(n * test_frac))
-    n_val = max(1, int(n * val_frac))
-    return items[n_test + n_val :], items[n_test : n_test + n_val], items[:n_test]
+def split_rows_by_speakers(
+    rows: list[dict],
+    val_speakers: set[str],
+    test_speakers: set[str],
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Partition ``rows`` by explicit val/test speaker sets (rest = train); pairs
+    with a persisted ``data/splits.json``."""
+    val_sp, test_sp = set(val_speakers), set(test_speakers)
+    train = [
+        r for r in rows if r["speaker"] not in test_sp and r["speaker"] not in val_sp
+    ]
+    val = [r for r in rows if r["speaker"] in val_sp]
+    test = [r for r in rows if r["speaker"] in test_sp]
+    return train, val, test
 
 
 def split_by_speaker(
@@ -136,25 +134,16 @@ def split_by_speaker(
     test_frac: float = P.TEST_SPEAKER_FRAC,
     seed: int = P.SEED,
 ) -> tuple[list[dict], list[dict], list[dict]]:
-    """
-    Speaker-disjoint split. Falls back to a per-utterance split when there are
-    fewer than 3 speakers (e.g. tiny smoke-test data).
-    """
+    """Speaker-disjoint split derived from ``rows`` (per-utterance fallback under 3
+    speakers). Prefer ``split_rows_by_speakers`` with a persisted partition."""
     speakers = sorted({r["speaker"] for r in rows})
-    rng = random.Random(seed)
 
     if len(speakers) < 3:
-        return _three_way_slice(rows, val_frac, test_frac, rng)
+        rng = random.Random(seed)
+        return three_way_slice(rows, val_frac, test_frac, rng)
 
-    _, val_speakers, test_speakers = _three_way_slice(speakers, val_frac, test_frac, rng)
-    val_sp, test_sp = set(val_speakers), set(test_speakers)
-
-    train = [
-        r for r in rows if r["speaker"] not in test_sp and r["speaker"] not in val_sp
-    ]
-    val = [r for r in rows if r["speaker"] in val_sp]
-    test = [r for r in rows if r["speaker"] in test_sp]
-    return train, val, test
+    _, val_speakers, test_speakers = split_speakers(speakers, val_frac, test_frac, seed)
+    return split_rows_by_speakers(rows, set(val_speakers), set(test_speakers))
 
 
 def write_jsonl(path: str | Path, rows: list[dict]) -> None:
@@ -178,12 +167,8 @@ def build_and_save(
     device=None,
     max_files: int | None = None,
 ) -> dict[str, int]:
-    """Build pairs, split by speaker, and write train/val/test JSONL into ``out_dir``.
-
-    ``shuffle=True`` so a ``max_files`` cap samples across the whole corpus (many
-    speakers) instead of the first few directories — otherwise the speaker split
-    would see only the earliest speakers.
-    """
+    """Build pairs, split by speaker, write train/val/test JSONL (shuffled so a
+    ``max_files`` cap spans many speakers)."""
     rows = build_pairs(
         data_root,
         mode=mode,
@@ -199,3 +184,42 @@ def build_and_save(
     write_jsonl(out_dir / "val.jsonl", val)
     write_jsonl(out_dir / "test.jsonl", test)
     return {"train": len(train), "val": len(val), "test": len(test), "total": len(rows)}
+
+
+def build_pipeline_dataset(
+    data_root: str | Path,
+    out_dir: str | Path,
+    splits: dict[str, list[str]],
+    checkpoint: str | Path,
+    device=None,
+    normalize: bool = P.NORMALIZE_TARGET,
+    max_files: int | None = None,
+) -> dict[str, int]:
+    """Build train/val/test JSONL on the shared partition (``splits`` from ``load_splits``).
+
+    train = oracle clean phones (corrupted at train time, see ``phone_noise``);
+    val/test = real CTC predictions on unseen speakers.
+    """
+    train_rows = build_pairs(
+        data_root, mode="clean", normalize=normalize,
+        speakers=set(splits["train"]), max_files=max_files,
+    )
+    val_rows = build_pairs(
+        data_root, mode="pred", checkpoint=checkpoint, device=device,
+        normalize=normalize, speakers=set(splits["val"]), max_files=max_files,
+    )
+    test_rows = build_pairs(
+        data_root, mode="pred", checkpoint=checkpoint, device=device,
+        normalize=normalize, speakers=set(splits["test"]), max_files=max_files,
+    )
+
+    out_dir = Path(out_dir)
+    write_jsonl(out_dir / "train.jsonl", train_rows)
+    write_jsonl(out_dir / "val.jsonl", val_rows)
+    write_jsonl(out_dir / "test.jsonl", test_rows)
+    return {
+        "train": len(train_rows),
+        "val": len(val_rows),
+        "test": len(test_rows),
+        "total": len(train_rows) + len(val_rows) + len(test_rows),
+    }
