@@ -299,6 +299,22 @@ def proba_predict(result, p=1, longer_reg = False, noise_v=True, aeo_reg = True,
                 word.pop(i)
                 wordprob.pop(i)
                 wordprob.pop(i)    
+
+    
+    ii = 1000
+    if len(word) >= 4:
+        ii = 0
+    while ii + 3 < len(word):
+        if (word[ii] == word[ii + 2] 
+            and word[ii + 1] == word[ii + 3]
+            and word[ii] != word[ii + 1]):
+            word.pop(ii + 2)
+            word.pop(ii + 2)    
+            wordprob.pop(ii + 2)
+            wordprob.pop(ii + 2)
+
+        else:
+            ii += 1
     if aeo_reg:
         for i in range(len(word)-1, 0, -1):
                 if (word[i] in longvowels and word[i-1] in longvowels):
@@ -310,8 +326,7 @@ def proba_predict(result, p=1, longer_reg = False, noise_v=True, aeo_reg = True,
             print(word[i], round(wordprob[i], 2))
     
     return word
-    #print(word)
-    #print(wordprob)
+    
 
 def list_add(word_list, word_grid):
     for word in word_grid:

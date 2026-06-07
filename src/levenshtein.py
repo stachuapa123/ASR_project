@@ -232,3 +232,79 @@ def levenshtein_phoneme_aware(s1, s2,
             )
     
     return dp[n][m]
+
+
+def context_aware_deletion_cost(predicted, idx,
+                                  base_cost=0.6,
+                                  duplicate_discount=0.5,
+                                  similar_discount=0.3):
+    """Koszt usunięcia predicted[idx] zależnie od sąsiadów."""
+    char_to_delete = predicted[idx]
+    discount = 0.0
+    
+    if idx > 0:
+        left = predicted[idx - 1]
+        if left == char_to_delete:
+            discount = max(discount, duplicate_discount)
+        elif phoneme_substitution_cost(left, char_to_delete) <= 0.3:
+            discount = max(discount, similar_discount)
+    
+    if idx < len(predicted) - 1:
+        right = predicted[idx + 1]
+        if right == char_to_delete:
+            discount = max(discount, duplicate_discount)
+        elif phoneme_substitution_cost(right, char_to_delete) <= 0.3:
+            discount = max(discount, similar_discount)
+    
+    return max(0.05, base_cost - discount)
+
+
+def damerau_levenshtein_neighbour_aware(predicted, target,
+                                        base_delete=0.6,
+                                        base_insert=0.8,
+                                        base_transpose=0.5,
+                                        duplicate_discount=0.5,
+                                        similar_discount=0.3,
+                                        sub_cost_fn=None):
+    """Damerau-Levenshtein z:
+    - context-aware deletion (duplicaty i podobne sąsiady tanieją)
+    - weighted substitution (phoneme-aware)
+    - transpozycja sąsiednich znaków
+    """
+    if sub_cost_fn is None:
+        sub_cost_fn = phoneme_substitution_cost
+    
+    n, m = len(predicted), len(target)
+    dp = [[0.0] * (m + 1) for _ in range(n + 1)]
+    
+    # Pre-compute koszty deletion
+    deletion_costs = [
+        context_aware_deletion_cost(predicted, i, base_delete,
+                                      duplicate_discount, similar_discount)
+        for i in range(n)
+    ]
+    
+    # Baza
+    dp[0][0] = 0.0
+    for i in range(1, n + 1):
+        dp[i][0] = dp[i-1][0] + deletion_costs[i-1]
+    for j in range(1, m + 1):
+        dp[0][j] = j * base_insert
+    
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            sub = sub_cost_fn(predicted[i-1], target[j-1])
+            
+            dp[i][j] = min(
+                dp[i-1][j] + deletion_costs[i-1],
+                dp[i][j-1] + base_insert,
+                dp[i-1][j-1] + sub,
+            )
+            
+            # transpozycja
+            if i >= 2 and j >= 2 \
+               and predicted[i-1] == target[j-2] \
+               and predicted[i-2] == target[j-1]:
+                dp[i][j] = min(dp[i][j], dp[i-2][j-2] + base_transpose)
+    
+    return dp[n][m]
