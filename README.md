@@ -77,10 +77,10 @@ Instead of one-hot labels, each window gets a **proportional distribution** of p
 
 ```
 Window 0.22-0.30s contains:
-  tS from 0.22-0.24s → 20ms / 80ms = 0.25
+  s from 0.22-0.24s → 20ms / 80ms = 0.25
   e  from 0.24-0.30s → 60ms / 80ms = 0.75
 
-Soft label: y = [0.0, ..., 0.25 (tS), 0.0, ..., 0.75 (e), ...]
+Soft label: y = [0.0, ..., 0.25 (s), 0.0, ..., 0.75 (e), ...]
 ```
 
 Trained with KL divergence (equivalent to cross-entropy with soft targets). Helps boundary windows where two phonemes are present.
@@ -140,11 +140,7 @@ The project uses [uv](https://github.com/astral-sh/uv) for dependency management
 git clone https://github.com/yourusername/ASR_project.git
 cd ASR_project
 
-# CPU-only install (recommended for development)
-uv sync --extra cpu
-
-# GPU install (NVIDIA)
-uv sync --extra gpu
+uv sync
 ```
 
 ### Manual install with pip
@@ -154,19 +150,6 @@ pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 pip install torchmetrics scipy sounddevice customtkinter tqdm matplotlib
 ```
 
-## 📈 Training
-
-Train the CRNN model:
-
-```bash
-jupyter notebook notebooks/crnn.ipynb
-```
-
-Train the CTC model:
-
-```bash
-jupyter notebook notebooks/ctc.ipynb
-```
 
 Both notebooks expect data in `data/` with paired `.wav` + `.TextGrid` files. Phoneme labels follow the custom 39-phoneme Polish set defined in `src/constants.py`.
 
@@ -184,7 +167,7 @@ Both notebooks expect data in `data/` with paired `.wav` + `.TextGrid` files. Ph
 | Scheduler | ReduceLROnPlateau | OneCycle |
 | Loss | Soft Cross-Entropy (KL) | CTC |
 | Epochs trained | 60 | 45 |
-| Graphics Card on training | Nvidia G4 (colab) | Nvidia RTX 4070 Ti Super (16 GB VRAM  |
+| Graphics Card on training | Nvidia G4 (colab) | Nvidia RTX 4070 Ti Super (16 GB VRAM)  |
 
 ## 🎯 What Works, What Doesn't
 
