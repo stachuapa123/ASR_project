@@ -129,7 +129,7 @@ A CustomTkinter application that lets you record speech and compare both models 
 Run with:
 
 ```bash
-python gui.py
+python /GUI/gui.py
 ```
 
 ## 🚀 Installation
