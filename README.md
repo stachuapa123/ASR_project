@@ -92,7 +92,7 @@ Lazy dataset with on-the-fly mel + augmentation was **catastrophically slow on C
 1. Pre-compute 5 audio-augmented variants per file once
 2. Cache as single `.pt` file (~10 GB in RAM)
 3. Load directly to GPU with `map_location='cuda'` and `num_workers=0`
-4. Training drops from 100 min/epoch to **~30 seconds/epoch** on RTX PRO 6000
+4. Training drops from 100 min/epoch to **~2/3 mins/epoch** on Nvidia G4
 
 ## 🔤 Decoding Pipeline
 
